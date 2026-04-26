@@ -1,0 +1,1039 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>BABYLON - 신앙의 여정 (멀티플레이어)</title>
+  
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600;800&family=Noto+Serif+KR:wght@500;700;900&display=swap" rel="stylesheet">
+  <script src="https://unpkg.com/lucide@latest"></script>
+
+  <style>
+    body { background-color: #1e1512; }
+    .font-medieval { font-family: 'Cinzel', 'Noto Serif KR', serif; }
+    
+    .wood-bg { background: linear-gradient(135deg, #1e1512 0%, #0d0705 100%); }
+    .parchment-panel { background: linear-gradient(to bottom right, #2f221a, #1f140e); }
+    
+    .gold-text { background: linear-gradient(to bottom, #fada5e, #d4af37, #996515); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+    
+    .wax-seal { background: radial-gradient(circle at 30% 30%, #b71c1c, #7f0000); box-shadow: inset 0 0 10px rgba(0,0,0,0.7), 0 4px 6px rgba(0,0,0,0.8); }
+    .stone-slot { background: #140b08; box-shadow: inset 0 4px 8px rgba(0,0,0,0.9), 0 1px 1px rgba(255,255,255,0.05); border: 2px solid #3e2723; }
+    
+    .medieval-btn { background: linear-gradient(to bottom, #4e342e, #2b1b17); border: 2px solid #795548; box-shadow: 0 4px 6px rgba(0,0,0,0.6), inset 0 1px 1px rgba(255,255,255,0.05); color: #e6d5c3; transition: all 0.2s; }
+    .medieval-btn:hover:not(:disabled) { background: linear-gradient(to bottom, #5d4037, #3e2723); border-color: #8d6e63; }
+    .medieval-btn:active:not(:disabled) { background: #2b1b17; box-shadow: inset 0 4px 6px rgba(0,0,0,0.8); transform: translateY(2px); }
+    .medieval-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+    
+    .gold-btn { background: linear-gradient(to bottom, #d4af37, #aa8000); border: 2px solid #ffe066; color: #1a110c; text-shadow: 0 1px 1px rgba(255,255,255,0.3); box-shadow: 0 4px 8px rgba(0,0,0,0.7); transition: all 0.2s; }
+    .gold-btn:hover:not(:disabled) { background: linear-gradient(to bottom, #e5c158, #b8860b); }
+    .gold-btn:active:not(:disabled) { background: #996515; transform: translateY(2px); box-shadow: inset 0 4px 6px rgba(0,0,0,0.8); }
+    .gold-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+    
+    .blood-btn { background: linear-gradient(to bottom, #990000, #5c0000); border: 2px solid #ff5252; color: #ffebee; box-shadow: 0 4px 8px rgba(0,0,0,0.7); transition: all 0.2s; }
+    .blood-btn:hover { background: linear-gradient(to bottom, #b71c1c, #7f0000); }
+    
+    .royal-btn { background: linear-gradient(to bottom, #1565c0, #0d47a1); border: 2px solid #82b1ff; color: #e3f2fd; box-shadow: 0 4px 8px rgba(0,0,0,0.7); transition: all 0.2s; }
+    .royal-btn:hover { background: linear-gradient(to bottom, #1976d2, #1565c0); }
+    
+    .medieval-input { background: rgba(0,0,0,0.6); border: 2px solid #4e342e; color: #f5deb3; }
+    .medieval-input:focus { border-color: #d4af37; outline: none; box-shadow: 0 0 10px rgba(212,175,55,0.3); }
+
+    @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+    .animate-fadeIn { animation: fadeIn 0.3s ease-in-out; }
+    
+    /* 채팅 스크롤바 커스텀 */
+    #chat-messages::-webkit-scrollbar { width: 6px; }
+    #chat-messages::-webkit-scrollbar-track { background: #140b08; }
+    #chat-messages::-webkit-scrollbar-thumb { background: #4e342e; border-radius: 4px; }
+  </style>
+</head>
+<body class="min-h-screen wood-bg text-[#e6d5c3] font-medieval overflow-x-hidden flex flex-col md:flex-row justify-center relative">
+
+  <!-- 토스트 알림창 -->
+  <div id="toast" class="fixed top-10 left-1/2 transform -translate-x-1/2 bg-[#3e2723] text-[#f5deb3] font-bold px-6 py-3 rounded-sm border-2 border-[#d4af37] shadow-[0_10px_20px_rgba(0,0,0,0.8)] z-[200] transition-opacity duration-300 opacity-0 pointer-events-none flex items-center gap-3">
+    <i data-lucide="bell" class="w-5 h-5 text-[#d4af37]"></i>
+    <span id="toast-msg">메시지</span>
+  </div>
+
+  <!-- 게임 리셋 모달 -->
+  <div id="reset-modal" class="hidden fixed inset-0 bg-black/80 flex items-center justify-center z-[100] px-4 animate-fadeIn">
+    <div class="parchment-panel border-[4px] border-double border-[#8b6b4a] p-6 rounded-sm shadow-2xl text-center max-w-sm w-full">
+      <i data-lucide="alert-triangle" class="w-12 h-12 text-[#ff5252] mx-auto mb-4"></i>
+      <h3 class="text-2xl font-bold gold-text mb-2">게임 리셋</h3>
+      <p class="text-[#d7ccc8] mb-8 font-medium">진행 중인 게임을 초기화하시겠습니까?<br/>모든 진행 상황이 삭제됩니다.</p>
+      <div class="flex gap-4">
+        <button onclick="executeReset()" class="flex-1 py-3 blood-btn font-bold text-lg rounded-sm">네, 리셋</button>
+        <button onclick="hideResetModal()" class="flex-1 py-3 medieval-btn font-bold text-lg rounded-sm">취소</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 메인 게임 영역 -->
+  <div id="app" class="w-full max-w-md relative pt-12 p-4 sm:p-6 pb-20 mx-auto transition-all duration-300">
+    <div class="flex items-center justify-center h-[50vh]">
+      <div class="text-center">
+        <i data-lucide="loader-2" class="w-12 h-12 text-[#d4af37] animate-spin mx-auto mb-4"></i>
+        <p class="font-bold gold-text text-xl">서버에 연결 중...</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- 채팅 영역 (초기엔 숨김) -->
+  <div id="chat-container" class="hidden fixed bottom-0 md:bottom-6 right-0 md:right-6 w-full md:w-80 bg-[linear-gradient(to_bottom_right,#2f221a,#1f140e)] border-t-[4px] md:border-[4px] border-double border-[#8b6b4a] md:rounded-sm shadow-[0_0_30px_rgba(0,0,0,0.9)] z-40 flex-col h-[40vh] md:h-[500px]">
+    <div class="p-3 bg-[#140b08] border-b border-[#5d4037] flex justify-between items-center shadow-md">
+      <div class="flex items-center gap-2">
+        <i data-lucide="message-square" class="w-5 h-5 text-[#d4af37]"></i>
+        <span class="gold-text font-bold text-lg tracking-wider">왕국의 메아리</span>
+      </div>
+    </div>
+    <div id="chat-messages" class="flex-1 overflow-y-auto p-4 space-y-3 font-sans text-sm bg-black/40 shadow-inner">
+      <!-- 채팅 메시지가 여기에 렌더링됩니다. -->
+    </div>
+    <form id="chat-form" class="flex p-3 bg-[#140b08] border-t border-[#5d4037]">
+      <input id="chat-input" type="text" class="flex-1 medieval-input px-3 py-2 rounded-sm text-sm font-sans placeholder-[#8d6e63]" placeholder="의견을 나누세요..." autocomplete="off">
+      <button type="submit" class="ml-2 px-4 py-2 medieval-btn font-bold text-sm rounded-sm">전송</button>
+    </form>
+  </div>
+
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+    import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+    import { getFirestore, doc, setDoc, onSnapshot, collection, addDoc, updateDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+    // --- 커스텀 알림(Toast) 함수 ---
+    window.showToast = (msg) => {
+      const toast = document.getElementById('toast');
+      const toastMsg = document.getElementById('toast-msg');
+      if(!toast || !toastMsg) return;
+      toastMsg.innerText = msg;
+      toast.classList.remove('opacity-0');
+      setTimeout(() => {
+        toast.classList.add('opacity-0');
+      }, 2500);
+    };
+
+    // --- 초대 링크 복사 기능 ---
+    window.copyInviteLink = () => {
+      const tempInput = document.createElement("input");
+      tempInput.value = window.location.href;
+      document.body.appendChild(tempInput);
+      tempInput.select();
+      try {
+        document.execCommand("copy");
+        showToast("초대 링크가 복사되었습니다!");
+      } catch (err) {
+        showToast("링크 복사에 실패했습니다.");
+      }
+      document.body.removeChild(tempInput);
+    };
+
+    // --- 모달 제어 ---
+    window.showResetModal = () => document.getElementById('reset-modal').classList.remove('hidden');
+    window.hideResetModal = () => document.getElementById('reset-modal').classList.add('hidden');
+
+    // --- Firebase 설정 ---
+    const appId = typeof __app_id !== 'undefined' ? __app_id : 'babylon-multiplayer-demo';
+    const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : { projectId: 'demo-project' };
+    
+    // 로컬 실행(Firebase 설정 누락) 방어 코드
+    let isLocalMissingConfig = (firebaseConfig.projectId === 'demo-project');
+
+    const app = initializeApp(firebaseConfig);
+    const auth = getAuth(app);
+    const db = getFirestore(app);
+
+    // --- 게임 상수 ---
+    const MIN_PLAYERS = 5;
+    const MAX_PLAYERS = 10;
+    const GOOD_ROLES_ORDER = [
+      { roleId: 'moses', characterName: '모세', role: '멀린', desc: '느부갓네살을 제외한 악 진영이 누구인지 알고 있습니다.', img: 'https://image.pollinations.ai/prompt/classical%20oil%20painting%20of%20biblical%20Moses%20parting%20the%20sea?width=400&height=400&nologo=true&seed=1' },
+      { roleId: 'daniel', characterName: '다니엘', role: '퍼시벌', desc: '모세와 이세벨을 알지만, 둘 중 누가 진짜 모세인지는 모릅니다.', img: 'https://image.pollinations.ai/prompt/classical%20oil%20painting%20of%20biblical%20Daniel%20in%20lion%20den?width=400&height=400&nologo=true&seed=2' },
+      { roleId: 'esther', characterName: '에스더', role: '충신', desc: '특별한 능력은 없지만, 선 진영의 승리를 위해 헌신합니다.', img: 'https://image.pollinations.ai/prompt/classical%20oil%20painting%20of%20biblical%20Queen%20Esther%20beautiful?width=400&height=400&nologo=true&seed=3' },
+      { roleId: 'jacob', characterName: '야곱', role: '충신', desc: '특별한 능력은 없지만, 선 진영의 승리를 위해 헌신합니다.', img: 'https://image.pollinations.ai/prompt/classical%20oil%20painting%20of%20biblical%20Jacob%20wrestling%20angel?width=400&height=400&nologo=true&seed=4' },
+      { roleId: 'noah', characterName: '노아', role: '충신', desc: '특별한 능력은 없지만, 선 진영의 승리를 위해 헌신합니다.', img: 'https://image.pollinations.ai/prompt/classical%20oil%20painting%20of%20biblical%20Noah%20and%20ark?width=400&height=400&nologo=true&seed=5' },
+      { roleId: 'abraham', characterName: '아브라함', role: '충신', desc: '특별한 능력은 없지만, 선 진영의 승리를 위해 헌신합니다.', img: 'https://image.pollinations.ai/prompt/classical%20oil%20painting%20of%20biblical%20patriarch%20Abraham%20looking%20at%20stars?width=400&height=400&nologo=true&seed=6' }
+    ];
+    const EVIL_ROLES_ORDER = [
+      { roleId: 'herod', characterName: '헤롯', role: '암살자', desc: '모세를 찾아내어 암살하면 역전승합니다.', img: 'https://image.pollinations.ai/prompt/classical%20oil%20painting%20of%20evil%20King%20Herod%20angry?width=400&height=400&nologo=true&seed=7' },
+      { roleId: 'jezebel', characterName: '이세벨', role: '모르가나', desc: '다니엘에게 모세처럼 보입니다.', img: 'https://image.pollinations.ai/prompt/classical%20oil%20painting%20of%20wicked%20Queen%20Jezebel?width=400&height=400&nologo=true&seed=8' },
+      { roleId: 'nebuchadnezzar', characterName: '느부갓네살', role: '모드레드', desc: '모세에게 자신의 정체를 숨깁니다.', img: 'https://image.pollinations.ai/prompt/classical%20oil%20painting%20of%20King%20Nebuchadnezzar%20babylon?width=400&height=400&nologo=true&seed=9' },
+      { roleId: 'pharaoh', characterName: '바로', role: '오베론', desc: '악 진영 동료들의 정체와 역할을 모두 압니다.', img: 'https://image.pollinations.ai/prompt/classical%20oil%20painting%20of%20Egyptian%20Pharaoh%20exodus?width=400&height=400&nologo=true&seed=10' }
+    ];
+    const ROLE_COUNTS = { 5:[3,2], 6:[4,2], 7:[4,3], 8:[5,3], 9:[6,3], 10:[6,4] };
+    const QUEST_SIZES = {
+      5:[2,3,2,3,3], 6:[2,3,4,3,4], 7:[2,3,3,4,4],
+      8:[3,4,4,5,5], 9:[3,4,4,5,5], 10:[3,4,4,5,5]
+    };
+
+    const shuffle = (array) => {
+      const arr = [...array];
+      for (let i = arr.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [arr[i], arr[j]] = [arr[j], arr[i]];
+      }
+      return arr;
+    };
+
+    // --- 글로벌 상태 ---
+    let currentUser = null;
+    let gameState = {
+      status: 'loading', // setup, reveal, board, pre_discussion, select_team, discussion, voting, quest, quest_result, evil_discussion, assassination, end
+      players: [], 
+      readyPlayers: [], 
+      leaderIndex: 0,
+      currentRound: 0,
+      rejectCount: 0,
+      selectedTeam: [], 
+      votes: {}, 
+      questCards: {}, 
+      history: [],
+      assassinationTarget: null,
+      winner: null,
+      winReason: ''
+    };
+
+    const roomRef = doc(db, 'artifacts', appId, 'public', 'data', 'gameState', 'room');
+    const chatRef = collection(db, 'artifacts', appId, 'public', 'data', 'chat');
+
+    // --- 인증 초기화 ---
+    async function initAuth() {
+      // 로컬 파일로 열어서 Firebase 설정이 없는 경우
+      if (isLocalMissingConfig) {
+        document.getElementById('app').innerHTML = `
+          <div class="parchment-panel border-[6px] border-double border-[#8b6b4a] p-8 rounded-sm shadow-2xl text-center mt-10 mx-auto w-full max-w-lg">
+            <i data-lucide="alert-triangle" class="w-16 h-16 text-[#ff5252] mx-auto mb-4"></i>
+            <h2 class="text-3xl font-extrabold gold-text mb-4">로컬 실행 안내</h2>
+            <p class="text-[#d7ccc8] mb-6 font-medium leading-relaxed text-left bg-[#140b08]/80 p-4 rounded-sm border border-[#5d4037]">
+              이 게임은 실시간 동기화를 위해 <strong class="text-[#d4af37]">Firebase 서버 연동</strong>이 필수입니다.<br/><br/>
+              개인 기기에 다운로드한 HTML 파일에서 멀티플레이를 실행하시려면, 코드 내의 <code class="text-[#f5deb3] font-bold">firebaseConfig</code> 부분에 본인의 Firebase 프로젝트 설정을 직접 입력해야 합니다.
+            </p>
+            <p class="text-[#bcaaa4] font-bold text-sm">
+              (※ Canvas 환경 내에서는 서버가 자동 연결되어 바로 플레이할 수 있습니다.)
+            </p>
+          </div>
+        `;
+        lucide.createIcons();
+        return;
+      }
+
+      try {
+        if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+          await signInWithCustomToken(auth, __initial_auth_token);
+        } else {
+          await signInAnonymously(auth);
+        }
+      } catch (error) {
+        console.error("Auth Error:", error);
+        document.getElementById('app').innerHTML = `<div class="text-white text-center mt-10">인증 오류가 발생했습니다. 새로고침 해주세요.</div>`;
+      }
+    }
+
+    if (!isLocalMissingConfig) {
+      onAuthStateChanged(auth, (user) => {
+        currentUser = user;
+        if (user) {
+          setupListeners();
+        }
+      });
+    }
+
+    // --- 실시간 리스너 설정 ---
+    function setupListeners() {
+      // 1. 게임 상태 리스너
+      onSnapshot(roomRef, (snapshot) => {
+        if (snapshot.exists()) {
+          gameState = snapshot.data();
+        } else {
+          // 방이 없으면 초기화
+          gameState = { status: 'setup', players: [], readyPlayers: [], leaderIndex: 0, currentRound: 0, rejectCount: 0, selectedTeam: [], votes: {}, questCards: {}, history: [], assassinationTarget: null, winner: null, winReason: '' };
+          setDoc(roomRef, gameState);
+        }
+        updateChatVisibility();
+        render();
+      }, (error) => {
+        console.error("Firestore Listener Error:", error);
+      });
+
+      // 2. 채팅 리스너
+      onSnapshot(chatRef, (snapshot) => {
+        const messages = [];
+        snapshot.forEach(doc => messages.push(doc.data()));
+        messages.sort((a, b) => a.timestamp - b.timestamp);
+        renderChatMessages(messages);
+      }, (error) => console.error("Chat Error:", error));
+    }
+
+    // --- 채팅 렌더링 및 로직 ---
+    function updateChatVisibility() {
+      const chatContainer = document.getElementById('chat-container');
+      const isDiscussionPhase = ['pre_discussion', 'discussion', 'evil_discussion'].includes(gameState.status);
+      
+      if (gameState.status === 'setup') {
+        chatContainer.classList.add('hidden');
+        chatContainer.classList.remove('flex');
+        return;
+      }
+
+      if (isDiscussionPhase) {
+        chatContainer.classList.remove('hidden');
+        chatContainer.classList.add('flex');
+        setTimeout(() => {
+          const chatBox = document.getElementById('chat-messages');
+          chatBox.scrollTop = chatBox.scrollHeight;
+        }, 100);
+      } else {
+        chatContainer.classList.add('hidden');
+        chatContainer.classList.remove('flex');
+      }
+    }
+
+    function renderChatMessages(messages) {
+      const chatBox = document.getElementById('chat-messages');
+      if (!chatBox) return;
+      
+      chatBox.innerHTML = messages.map(msg => {
+        const isMe = currentUser && msg.uid === currentUser.uid;
+        if (msg.uid === 'system') {
+          return `<div class="text-center my-2"><span class="bg-[#3e2723] text-[#d7ccc8] text-xs px-3 py-1 rounded-sm border border-[#5d4037]">${msg.text}</span></div>`;
+        }
+        return `
+          <div class="flex flex-col ${isMe ? 'items-end' : 'items-start'} animate-fadeIn">
+            <span class="text-xs ${isMe ? 'text-[#d4af37]' : 'text-[#bcaaa4]'} font-bold mb-1 ml-1">${msg.name}</span>
+            <div class="px-3 py-2 rounded-sm max-w-[85%] ${isMe ? 'bg-[#3e2723] text-[#f5deb3] border border-[#5d4037]' : 'bg-[#140b08] text-[#e6d5c3] border border-[#4e342e]'} shadow-md font-sans">
+              ${msg.text}
+            </div>
+          </div>
+        `;
+      }).join('');
+      chatBox.scrollTop = chatBox.scrollHeight;
+    }
+
+    document.getElementById('chat-form').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      if (!currentUser) return;
+      
+      const input = document.getElementById('chat-input');
+      const text = input.value.trim();
+      if (!text) return;
+
+      const myPlayer = gameState.players.find(p => p.uid === currentUser.uid);
+      const name = myPlayer ? myPlayer.name : '관전자';
+
+      input.value = '';
+      try {
+        await addDoc(chatRef, { uid: currentUser.uid, name: name, text: text, timestamp: Date.now() });
+      } catch (err) {
+        console.error("메시지 전송 실패:", err);
+      }
+    });
+
+    async function sendSystemMessage(text) {
+      await addDoc(chatRef, { uid: 'system', name: 'System', text: text, timestamp: Date.now() });
+    }
+
+    // --- 게임 진행 액션 (Firestore 업데이트) ---
+    function isHost() { return gameState.players.length > 0 && currentUser && gameState.players[0].uid === currentUser.uid; }
+    function getMe() { return gameState.players.find(p => p.uid === currentUser.uid); }
+    function isLeader() { return currentUser && gameState.players[gameState.leaderIndex]?.uid === currentUser.uid; }
+
+    window.joinGame = async (e) => {
+      e.preventDefault();
+      const input = document.getElementById('playerNameInput');
+      const name = input.value.trim();
+      if (!name || !currentUser) return;
+      
+      if (gameState.players.length >= MAX_PLAYERS) return showToast('정원이 다 찼습니다.');
+      if (gameState.players.find(p => p.name === name)) return showToast('이미 사용 중인 이름입니다.');
+      if (gameState.players.find(p => p.uid === currentUser.uid)) return showToast('이미 참가했습니다.');
+
+      const updatedPlayers = [...gameState.players, { uid: currentUser.uid, name: name }];
+      await updateDoc(roomRef, { players: updatedPlayers });
+      input.value = '';
+    };
+
+    window.leaveGame = async (uidToLeave) => {
+      if (!currentUser) return;
+      const updatedPlayers = gameState.players.filter(p => p.uid !== uidToLeave);
+      await updateDoc(roomRef, { players: updatedPlayers });
+    };
+
+    window.startGame = async () => {
+      if (!isHost() || gameState.players.length < MIN_PLAYERS) return;
+
+      const pCount = gameState.players.length;
+      const [goodCount, evilCount] = ROLE_COUNTS[pCount];
+      
+      const goodRoles = GOOD_ROLES_ORDER.slice(0, goodCount).map(r => ({ ...r, team: 'good' }));
+      const evilRoles = EVIL_ROLES_ORDER.slice(0, evilCount).map(r => ({ ...r, team: 'evil' }));
+      
+      const allRoles = shuffle([...goodRoles, ...evilRoles]);
+      const assignedPlayers = shuffle(gameState.players).map((p, i) => ({ ...p, ...allRoles[i] }));
+
+      await updateDoc(roomRef, {
+        status: 'reveal',
+        players: assignedPlayers,
+        readyPlayers: [],
+        leaderIndex: Math.floor(Math.random() * pCount)
+      });
+      sendSystemMessage("게임이 시작되었습니다. 각자의 역할을 확인하세요.");
+    };
+
+    window.confirmRole = async () => {
+      if (!currentUser) return;
+      if (!gameState.readyPlayers.includes(currentUser.uid)) {
+        const newReady = [...gameState.readyPlayers, currentUser.uid];
+        if (newReady.length === gameState.players.length) {
+          await updateDoc(roomRef, { status: 'board', readyPlayers: [] });
+          const leader = gameState.players[gameState.leaderIndex].name;
+          sendSystemMessage(`모두 역할을 확인했습니다. 첫 대장은 [${leader}] 님입니다.`);
+        } else {
+          await updateDoc(roomRef, { readyPlayers: newReady });
+        }
+      }
+    };
+
+    window.togglePlayerSelection = async (targetUid) => {
+      if (!isLeader()) return;
+      const reqPlayers = QUEST_SIZES[gameState.players.length][gameState.currentRound];
+      let newTeam = [...gameState.selectedTeam];
+      const idx = newTeam.indexOf(targetUid);
+      
+      if (idx > -1) newTeam.splice(idx, 1);
+      else if (newTeam.length < reqPlayers) newTeam.push(targetUid);
+      
+      await updateDoc(roomRef, { selectedTeam: newTeam });
+    };
+
+    window.confirmTeam = async () => {
+      if (!isLeader()) return;
+      const reqPlayers = QUEST_SIZES[gameState.players.length][gameState.currentRound];
+      if (gameState.selectedTeam.length !== reqPlayers) return;
+
+      if (gameState.currentRound === 0) {
+        await updateDoc(roomRef, { status: 'discussion' });
+        sendSystemMessage("대장이 여정대를 지목했습니다. 토론을 진행하세요.");
+      } else {
+        await updateDoc(roomRef, { status: 'voting', votes: {} });
+        sendSystemMessage("대장이 여정대를 지목했습니다. 곧바로 투표를 진행해 주세요.");
+      }
+    };
+
+    window.endPreDiscussion = async () => {
+      if (!isHost()) return;
+      await updateDoc(roomRef, { status: 'board' });
+      sendSystemMessage("사전 토론이 종료되었습니다. 대장은 여정대를 지목해 주세요.");
+    };
+
+    window.endDiscussion = async () => {
+      if (!isHost()) return;
+      await updateDoc(roomRef, { status: 'voting', votes: {} });
+      sendSystemMessage("토론이 종료되었습니다. 지목된 여정대에 대한 투표를 진행해 주세요.");
+    };
+
+    window.castVote = async (voteType) => {
+      if (!currentUser) return;
+      const newVotes = { ...gameState.votes, [currentUser.uid]: voteType };
+      
+      if (Object.keys(newVotes).length === gameState.players.length) {
+        const approveCount = Object.values(newVotes).filter(v => v === 'approve').length;
+        if (approveCount > gameState.players.length / 2) {
+          await updateDoc(roomRef, { status: 'quest', votes: newVotes, questCards: {} });
+          sendSystemMessage("여정대 파견이 [가결]되었습니다. 여정대원들은 임무 카드를 제출해 주세요.");
+        } else {
+          const newRejectCount = gameState.rejectCount + 1;
+          if (newRejectCount >= 5) {
+            await updateDoc(roomRef, { status: 'end', winner: 'evil', winReason: '5연속 신앙여정대 파견 부결로 인한 악 진영 승리!', votes: newVotes });
+            sendSystemMessage("5연속 부결로 악 진영이 승리했습니다.");
+          } else {
+            const nextLeaderIdx = (gameState.leaderIndex + 1) % gameState.players.length;
+            await updateDoc(roomRef, {
+              status: 'pre_discussion',
+              leaderIndex: nextLeaderIdx,
+              selectedTeam: [],
+              rejectCount: newRejectCount,
+              votes: newVotes
+            });
+            const newLeader = gameState.players[nextLeaderIdx].name;
+            sendSystemMessage(`여정대 파견이 [부결]되었습니다. (부결 ${newRejectCount}/5). 새로운 대장은 [${newLeader}] 님입니다.`);
+          }
+        }
+      } else {
+        await updateDoc(roomRef, { votes: newVotes });
+      }
+    };
+
+    window.castQuestCard = async (cardType) => {
+      if (!currentUser || !gameState.selectedTeam.includes(currentUser.uid)) return;
+      
+      const newCards = { ...gameState.questCards, [currentUser.uid]: cardType };
+      
+      if (Object.keys(newCards).length === gameState.selectedTeam.length) {
+        const cardsArray = Object.values(newCards);
+        const failCount = cardsArray.filter(c => c === 'fail').length;
+        const needsTwoFails = gameState.players.length >= 7 && gameState.currentRound === 3;
+        const resultStatus = (needsTwoFails ? failCount >= 2 : failCount >= 1) ? 'fail' : 'success';
+
+        const newHistoryRecord = {
+          round: gameState.currentRound,
+          team: [...gameState.selectedTeam],
+          votes: { ...gameState.votes },
+          cards: shuffle([...cardsArray]),
+          result: resultStatus,
+          fails: failCount
+        };
+
+        await updateDoc(roomRef, {
+          status: 'quest_result',
+          questCards: newCards,
+          history: [...gameState.history, newHistoryRecord]
+        });
+        sendSystemMessage(`여정 결과가 도착했습니다! 결과: ${resultStatus === 'success' ? '성공' : '실패'}`);
+      } else {
+        await updateDoc(roomRef, { questCards: newCards });
+      }
+    };
+
+    window.proceedFromQuestResult = async () => {
+      if (!isHost()) return;
+      const goodWins = gameState.history.filter(h => h.result === 'success').length;
+      const evilWins = gameState.history.filter(h => h.result === 'fail').length;
+
+      if (goodWins >= 3) {
+        await updateDoc(roomRef, { status: 'evil_discussion' });
+        sendSystemMessage("선 진영이 3번의 여정을 성공시켰습니다! 악 진영은 마지막 모의를 진행하세요.");
+      } else if (evilWins >= 3) {
+        await updateDoc(roomRef, { status: 'end', winner: 'evil', winReason: '신앙여정 3회 실패로 악 진영 승리!' });
+        sendSystemMessage("여정 3회 실패로 악 진영이 승리했습니다.");
+      } else {
+        const nextLeaderIdx = (gameState.leaderIndex + 1) % gameState.players.length;
+        await updateDoc(roomRef, {
+          status: 'pre_discussion',
+          currentRound: gameState.currentRound + 1,
+          rejectCount: 0,
+          leaderIndex: nextLeaderIdx,
+          selectedTeam: []
+        });
+        const newLeader = gameState.players[nextLeaderIdx].name;
+        sendSystemMessage(`새로운 라운드가 시작됩니다. 이번 대장은 [${newLeader}] 님입니다.`);
+      }
+    };
+
+    window.endEvilDiscussion = async () => {
+      if (!isHost()) return;
+      await updateDoc(roomRef, { status: 'assassination' });
+      sendSystemMessage("악 진영 모의가 종료되었습니다. 헤롯은 암살 대상을 지목하세요.");
+    };
+
+    window.selectAssassination = async (targetUid) => {
+      const herod = gameState.players.find(p => p.roleId === 'herod');
+      if (!currentUser || currentUser.uid !== herod.uid) return;
+      await updateDoc(roomRef, { assassinationTarget: targetUid });
+    };
+
+    window.confirmAssassination = async () => {
+      const targetPlayer = gameState.players.find(p => p.uid === gameState.assassinationTarget);
+      if (!targetPlayer) return;
+      
+      if (targetPlayer.roleId === 'moses') {
+        await updateDoc(roomRef, { status: 'end', winner: 'evil', winReason: `헤롯이 모세(${targetPlayer.name})를 정확히 암살하여 악 진영 역전승!` });
+        sendSystemMessage("헤롯이 진짜 모세를 암살했습니다! 악 진영의 대역전승!");
+      } else {
+        await updateDoc(roomRef, { status: 'end', winner: 'good', winReason: `헤롯이 모세 암살에 실패했습니다. (지목: ${targetPlayer.name}) 선 진영 승리!` });
+        sendSystemMessage("헤롯이 엉뚱한 자를 암살했습니다. 선 진영이 무사히 여정을 마쳤습니다!");
+      }
+    };
+
+    window.executeReset = async () => {
+      hideResetModal();
+      if (!isHost()) return showToast('방장만 게임을 리셋할 수 있습니다.');
+      await setDoc(roomRef, {
+         status: 'setup', players: [], readyPlayers: [], leaderIndex: 0, currentRound: 0, rejectCount: 0, selectedTeam: [], votes: {}, questCards: {}, history: [], assassinationTarget: null, winner: null, winReason: '' 
+      });
+      showToast('게임이 초기화되었습니다.');
+    };
+
+    function getKnowledge(player) {
+      if (player.roleId === 'moses') {
+        const knownEvils = gameState.players.filter(p => p.team === 'evil' && p.roleId !== 'nebuchadnezzar').map(p => p.name);
+        return knownEvils.length > 0 ? `악 진영 (느부갓네살 제외): ${knownEvils.join(', ')}` : '알려진 악 진영이 없습니다.';
+      }
+      if (player.roleId === 'daniel') {
+        let targets = gameState.players.filter(p => p.roleId === 'moses' || p.roleId === 'jezebel').map(p => p.name);
+        return `모세 혹은 이세벨: ${shuffle(targets).join(', ')}`;
+      }
+      if (player.team === 'evil') {
+        const evils = gameState.players.filter(p => p.team === 'evil' && p.roleId !== player.roleId).map(p => `${p.name} (${p.characterName})`);
+        return evils.length > 0 ? `악 진영 동료: ${evils.join(', ')}` : '당신 외에 악 진영 동료가 없습니다.';
+      }
+      return '특별히 알고 있는 정보가 없습니다.';
+    }
+
+    // --- HTML 렌더링 엔진 ---
+    function render() {
+      if (isLocalMissingConfig) return; // 로컬 설정 에러 시 렌더링 스킵
+      
+      const app = document.getElementById('app');
+      let content = '';
+
+      // 상단 공통 버튼 (리셋)
+      if (gameState.status !== 'setup' && gameState.status !== 'loading') {
+        if (isHost()) {
+          content += `
+            <button onclick="showResetModal()" class="fixed top-4 right-4 p-2 bg-[#140b08] border-2 border-[#8b6b4a] text-[#d4af37] rounded-sm shadow-2xl z-50 hover:bg-[#2b1b17] hover:text-[#ff5252] hover:border-[#ff5252] transition-colors" title="방장 권한: 게임 리셋">
+              <i data-lucide="rotate-ccw" class="w-6 h-6"></i>
+            </button>
+          `;
+        }
+      }
+
+      const getTitleHTML = () => `
+        <div class="text-center mb-8 relative">
+          <h1 class="text-5xl font-extrabold font-medieval gold-text tracking-widest drop-shadow-[0_4px_6px_rgba(0,0,0,0.8)] mb-2 uppercase">BABYLON</h1>
+          <h2 class="text-lg text-[#bcaaa4] font-medieval uppercase tracking-widest border-b border-[#5d4037] pb-2 inline-block">신앙의 여정 (온라인)</h2>
+        </div>
+      `;
+
+      if (gameState.status === 'loading') {
+        content += `<div class="text-center mt-20 gold-text"><i data-lucide="loader-2" class="w-10 h-10 animate-spin mx-auto"></i>데이터 동기화 중...</div>`;
+      }
+      else if (gameState.status === 'setup') {
+        const myPlayer = getMe();
+        content += getTitleHTML() + `
+          <div class="parchment-panel border-[6px] border-double border-[#8b6b4a] p-6 rounded-sm shadow-[0_15px_35px_rgba(0,0,0,0.8)]">
+            <div class="flex justify-between items-center mb-6 border-b border-[#5d4037] pb-4">
+              <h3 class="text-2xl font-bold text-center gold-text uppercase">참가자 명부 (${gameState.players.length}/${MAX_PLAYERS})</h3>
+              <button onclick="copyInviteLink()" class="p-2 bg-[#140b08] border border-[#8b6b4a] text-[#d4af37] hover:bg-[#2b1b17] rounded-sm transition-colors shadow-md" title="초대 링크 복사">
+                <i data-lucide="link" class="w-5 h-5"></i>
+              </button>
+            </div>
+            
+            ${!myPlayer ? `
+              <form onsubmit="joinGame(event)" class="flex gap-2 mb-6">
+                <input type="text" id="playerNameInput" placeholder="당신의 이름 입력" class="flex-1 medieval-input px-4 py-2 text-base font-bold min-w-0" maxlength="10" autocomplete="off">
+                <button type="submit" class="px-5 py-2 medieval-btn font-bold text-base whitespace-nowrap shrink-0">입장</button>
+              </form>
+            ` : `
+              <div class="bg-[#3e2723] p-3 text-center rounded-sm border border-[#5d4037] mb-6 shadow-inner">
+                <span class="text-[#f5deb3] font-bold">당신은 [ ${myPlayer.name} ] 님으로 참가했습니다.</span>
+              </div>
+            `}
+
+            <ul class="space-y-2 mb-8 min-h-[160px]">
+              ${gameState.players.map((p) => `
+                <li class="flex justify-between items-center bg-[#140b08]/80 border border-[#4e342e] px-4 py-3 rounded-sm shadow-inner">
+                  <div class="flex items-center gap-2">
+                    ${gameState.players[0].uid === p.uid ? '<i data-lucide="crown" class="w-4 h-4 text-[#d4af37]" title="방장"></i>' : ''}
+                    <span class="font-bold text-lg ${p.uid === currentUser?.uid ? 'text-[#d4af37]' : 'text-[#f5deb3]'}">${p.name} ${p.uid === currentUser?.uid ? '(나)' : ''}</span>
+                  </div>
+                  ${currentUser && (isHost() || p.uid === currentUser.uid) ? `
+                    <button onclick="leaveGame('${p.uid}')" class="text-[#d32f2f] hover:text-[#ff5252]">
+                      <i data-lucide="x-circle" class="w-6 h-6"></i>
+                    </button>
+                  ` : ''}
+                </li>
+              `).join('')}
+              ${gameState.players.length === 0 ? `<p class="text-[#8d6e63] text-center py-6 font-bold">최소 5명의 용사가 필요합니다.</p>` : ''}
+            </ul>
+
+            ${isHost() ? `
+              <button onclick="startGame()" ${gameState.players.length < MIN_PLAYERS ? 'disabled' : ''} class="w-full py-4 text-xl font-bold tracking-wider ${gameState.players.length >= MIN_PLAYERS ? 'gold-btn' : 'medieval-btn'}">
+                ${gameState.players.length < MIN_PLAYERS ? `${MIN_PLAYERS}명 이상 필요` : '역할 배분 시작 (방장 권한)'}
+              </button>
+            ` : `
+              <div class="text-center p-3 text-[#bcaaa4] font-bold border border-[#5d4037] border-dashed rounded-sm">
+                ${gameState.players.length >= MIN_PLAYERS ? '방장이 게임을 시작하기를 기다리는 중...' : '인원이 모이기를 기다리는 중...'}
+              </div>
+            `}
+          </div>
+        `;
+      } 
+      else if (gameState.status === 'reveal') {
+        const myPlayer = getMe();
+        if (!myPlayer) {
+           content += `<div class="text-center mt-20 gold-text text-xl">당신은 이 게임의 관전자입니다.</div>`;
+        } else {
+          const isGood = myPlayer.team === 'good';
+          const hasConfirmed = gameState.readyPlayers.includes(currentUser.uid);
+          
+          content += getTitleHTML() + `
+            <div class="parchment-panel border-[6px] border-double border-[#8b6b4a] p-6 rounded-sm shadow-[0_15px_35px_rgba(0,0,0,0.8)] text-center min-h-[500px] flex flex-col">
+              <h3 class="text-2xl font-bold mb-3 gold-text">비밀 역할 서신</h3>
+              <p class="text-[#bcaaa4] mb-4 font-medium">오직 당신만 이 화면을 볼 수 있습니다.</p>
+              
+              <div class="flex-1 flex flex-col justify-center items-center animate-fadeIn">
+                <div class="relative w-36 h-36 mx-auto mb-4 border-[4px] border-[#8b6b4a] rounded-sm shadow-[0_5px_15px_rgba(0,0,0,0.9)] overflow-hidden bg-[#140b08] flex items-center justify-center">
+                  <img src="${myPlayer.img}" alt="${myPlayer.characterName}" class="relative z-10 w-full h-full object-cover" style="filter: sepia(0.4) contrast(1.1) brightness(0.9);">
+                  <div class="absolute inset-0 z-20 ring-inset ring-[4px] ring-black/40 pointer-events-none"></div>
+                </div>
+
+                <div class="text-sm px-4 py-1 rounded-sm mb-2 font-bold border-2 ${isGood ? 'bg-[#0d47a1]/40 text-[#82b1ff] border-[#1565c0]' : 'bg-[#7f0000]/40 text-[#ff8a80] border-[#b71c1c]'}">
+                  ${isGood ? '선 진영 (빛의 자녀들)' : '악 진영 (어둠의 권세)'}
+                </div>
+                
+                <h4 class="text-3xl font-extrabold mb-1 text-[#f5deb3]">${myPlayer.name}</h4>
+                <h5 class="text-xl font-bold mb-3 drop-shadow-md ${isGood ? 'text-[#64b5f6]' : 'text-[#ff5252]'}">${myPlayer.characterName} <span class="opacity-80 text-base">(${myPlayer.role})</span></h5>
+                
+                <p class="text-[#d7ccc8] text-sm mb-4 leading-relaxed stone-slot px-4 py-3 rounded-sm font-medium">"${myPlayer.desc}"</p>
+                
+                <div class="w-full bg-[#140b08]/80 p-4 rounded-sm border border-[#5d4037] text-left mb-6 shadow-inner">
+                  <span class="block text-sm gold-text mb-2 font-bold uppercase">알려진 진실:</span>
+                  <span class="text-[#f5deb3] font-medium leading-relaxed">${getKnowledge(myPlayer)}</span>
+                </div>
+                
+                ${hasConfirmed ? `
+                  <button disabled class="w-full py-4 bg-[#140b08] border-2 border-[#5d4037] text-[#8d6e63] font-bold text-xl rounded-sm">다른 용사들 기다리는 중... (${gameState.readyPlayers.length}/${gameState.players.length})</button>
+                ` : `
+                  <button onclick="confirmRole()" class="w-full py-4 gold-btn font-bold text-xl flex items-center justify-center gap-3">
+                    내 역할 확인 완료 <i data-lucide="check" class="w-6 h-6"></i>
+                  </button>
+                `}
+              </div>
+            </div>
+          `;
+        }
+      }
+      else if (gameState.status === 'pre_discussion') {
+        const currentLeader = gameState.players[gameState.leaderIndex];
+        content += `
+          <div class="parchment-panel border-[6px] border-double border-[#8b6b4a] p-8 rounded-sm shadow-2xl text-center flex flex-col justify-center min-h-[450px]">
+            <i data-lucide="message-circle" class="w-16 h-16 text-[#d4af37] mx-auto mb-4 drop-shadow-lg"></i>
+            <h2 class="text-3xl font-extrabold gold-text mb-2">여정대 지목 전 토론</h2>
+            
+            <div class="my-6">
+              <h3 class="text-xl text-[#bcaaa4] mb-2 font-bold">이번 신앙여정 대장</h3>
+              <div class="flex items-center justify-center gap-3">
+                <i data-lucide="crown" class="w-8 h-8 text-[#d4af37] drop-shadow-md"></i>
+                <p class="text-4xl font-extrabold text-[#f5deb3] drop-shadow-md">${currentLeader.name}</p>
+              </div>
+            </div>
+
+            <p class="text-[#d7ccc8] mb-8 font-medium text-lg leading-relaxed">대장이 여정대를 지목하기 전입니다.<br/>채팅창을 통해 의견을 나누세요.</p>
+            
+            ${isHost() ? `
+              <button onclick="endPreDiscussion()" class="w-full py-4 royal-btn font-bold text-xl">방장 권한: 토론 종료 (지목 단계로)</button>
+            ` : `
+              <div class="text-[#bcaaa4] font-bold p-3 border border-dashed border-[#5d4037]">방장이 토론을 종료할 때까지 기다려 주세요.</div>
+            `}
+          </div>
+        `;
+      }
+      else if (gameState.status === 'board' || gameState.status === 'select_team') {
+        const currentLeader = gameState.players[gameState.leaderIndex];
+        const reqPlayers = QUEST_SIZES[gameState.players.length][gameState.currentRound];
+        const amILeader = isLeader();
+        
+        content += `
+          <div class="flex justify-between items-end mb-6 border-b-2 border-[#5d4037] pb-2">
+            <h1 class="text-4xl font-extrabold gold-text font-medieval tracking-widest drop-shadow-md">BABYLON</h1>
+            <span class="text-[#d4af37] font-bold bg-[#2b1b17] px-4 py-1.5 rounded-sm border-2 border-[#5d4037] shadow-lg">라운드 ${gameState.currentRound + 1}/5</span>
+          </div>
+          
+          <div class="flex justify-between items-center parchment-panel p-5 rounded-sm shadow-[0_10px_20px_rgba(0,0,0,0.8)] border-[4px] border-double border-[#8b6b4a] mb-6 relative">
+            ${QUEST_SIZES[gameState.players.length].map((size, idx) => {
+              const isCurrent = idx === gameState.currentRound;
+              const pastResult = gameState.history[idx];
+              let circleClass = "w-10 h-10 md:w-14 md:h-14 flex items-center justify-center font-bold text-lg md:text-xl transition-all rounded-full ";
+              let innerHTML = size;
+              
+              if (pastResult) {
+                circleClass += pastResult.result === 'success' ? 'royal-btn' : 'wax-seal border-2 border-[#ff8a80] text-red-100';
+                innerHTML = pastResult.result === 'success' ? '<i data-lucide="shield" class="w-5 h-5"></i>' : '<i data-lucide="sword" class="w-5 h-5"></i>';
+              } else if (isCurrent) {
+                circleClass += 'gold-btn scale-110 shadow-[0_0_20px_rgba(212,175,55,0.6)] z-10';
+              } else {
+                circleClass += 'stone-slot text-[#8d6e63]';
+              }
+
+              return `
+                <div class="flex flex-col items-center relative z-10">
+                  <div class="${circleClass}">${innerHTML}</div>
+                  ${(gameState.players.length >= 7 && idx === 3) ? '<span class="absolute -bottom-6 text-[10px] text-[#ff5252] font-bold whitespace-nowrap bg-[#140b08] px-1 border border-[#ff5252] rounded-sm">2실패 필요</span>' : ''}
+                </div>
+              `;
+            }).join('')}
+          </div>
+
+          <div class="bg-[#140b08]/90 p-4 rounded-sm shadow-lg border-2 border-[#4e342e] mb-6">
+            <div class="flex justify-between items-center mb-3">
+              <span class="text-[#bcaaa4] font-bold uppercase tracking-wider">부결 트랙 <span class="text-xs normal-case">(5회 시 악 승리)</span></span>
+              <span class="text-[#ff5252] font-extrabold text-lg">${gameState.rejectCount} / 5</span>
+            </div>
+            <div class="flex gap-2 h-4">
+              ${[1,2,3,4,5].map(i => `<div class="flex-1 rounded-sm border border-[#140b08] shadow-inner ${i <= gameState.rejectCount ? 'bg-[#b71c1c] shadow-[0_0_10px_rgba(239,68,68,0.8)]' : 'bg-[#2b1b17]'}"></div>`).join('')}
+            </div>
+          </div>
+
+          <div class="parchment-panel p-6 rounded-sm shadow-[0_15px_35px_rgba(0,0,0,0.9)] border-[6px] border-double border-[#8b6b4a] relative overflow-hidden">
+            <div>
+              <div class="mb-6 text-center border-b border-[#5d4037] pb-4">
+                <h3 class="text-2xl font-bold gold-text mb-2">여정대 지목</h3>
+                <p class="text-[#d7ccc8] font-medium">대장 <strong class="text-[#f5deb3] text-lg">${currentLeader.name}</strong> 님, ${reqPlayers}명을 지목하세요.</p>
+                <p class="text-[#d4af37] font-extrabold mt-2 text-lg">선택됨: ${gameState.selectedTeam.length} / ${reqPlayers}</p>
+              </div>
+              <div class="grid grid-cols-2 gap-4 mb-8">
+                ${gameState.players.map(p => {
+                  const isSelected = gameState.selectedTeam.includes(p.uid);
+                  const isLeaderSpan = p.uid === currentLeader.uid;
+                  return `
+                    <button ${amILeader ? `onclick="togglePlayerSelection('${p.uid}')"` : 'disabled'} class="relative p-4 rounded-sm text-left transition-all font-bold text-xl ${isSelected ? 'bg-[#3e2723] border-2 border-[#d4af37] text-[#ffe066] shadow-[0_0_15px_rgba(212,175,55,0.4)]' : 'medieval-btn opacity-90'}">
+                      ${isLeaderSpan ? '<i data-lucide="crown" class="absolute top-2 right-2 w-4 h-4 text-[#d4af37]"></i>' : ''}
+                      ${p.name}
+                    </button>
+                  `;
+                }).join('')}
+              </div>
+              ${amILeader ? `
+                <button onclick="confirmTeam()" ${gameState.selectedTeam.length !== reqPlayers ? 'disabled' : ''} class="w-full py-4 rounded-sm font-bold text-xl transition-all ${gameState.selectedTeam.length === reqPlayers ? 'gold-btn' : 'medieval-btn'}">지목 완료</button>
+              ` : `
+                <div class="text-center p-3 text-[#bcaaa4] font-bold border border-[#5d4037] border-dashed rounded-sm">대장이 여정대를 편성하고 있습니다...</div>
+              `}
+            </div>
+          </div>
+        `;
+      }
+      else if (gameState.status === 'discussion') {
+        const currentLeader = gameState.players[gameState.leaderIndex];
+        content += `
+          <div class="parchment-panel border-[6px] border-double border-[#8b6b4a] p-8 rounded-sm shadow-2xl text-center flex flex-col justify-center min-h-[450px]">
+            <i data-lucide="message-circle" class="w-16 h-16 text-[#d4af37] mx-auto mb-4 drop-shadow-lg"></i>
+            <h2 class="text-3xl font-extrabold gold-text mb-2">여정대 지목 후 토론</h2>
+            
+            <div class="my-4">
+              <div class="flex items-center justify-center gap-2 mb-2">
+                <i data-lucide="crown" class="w-6 h-6 text-[#d4af37]"></i>
+                <span class="text-2xl font-extrabold text-[#f5deb3]">${currentLeader.name}</span>
+                <span class="text-[#bcaaa4] font-medium">대장의 선택</span>
+              </div>
+            </div>
+            
+            <div class="stone-slot p-5 rounded-sm mb-8 border-[#5d4037]">
+              <span class="text-sm text-[#8d6e63] font-bold block mb-3 uppercase tracking-widest">지목된 여정대</span>
+              <div class="flex flex-wrap justify-center gap-3">
+                ${gameState.selectedTeam.map(uid => `
+                  <span class="bg-[#3e2723] border border-[#d4af37] px-4 py-1.5 rounded-sm text-[#ffe066] font-bold shadow-[0_0_10px_rgba(212,175,55,0.2)]">
+                    ${gameState.players.find(p=>p.uid === uid).name}
+                  </span>
+                `).join('')}
+              </div>
+            </div>
+
+            <p class="text-[#d7ccc8] mb-6 font-medium">채팅창을 통해 의견을 나눈 후 투표를 진행합니다.</p>
+            ${isHost() ? `
+              <button onclick="endDiscussion()" class="w-full py-4 royal-btn font-bold text-xl">방장 권한: 토론 종료 및 투표 시작</button>
+            ` : `
+              <div class="text-[#bcaaa4] font-bold p-3 border border-dashed border-[#5d4037]">방장이 토론을 종료할 때까지 기다려 주세요.</div>
+            `}
+          </div>
+        `;
+      }
+      else if (gameState.status === 'voting') {
+        const myVote = currentUser ? gameState.votes[currentUser.uid] : null;
+        content += `
+          <div class="parchment-panel border-[6px] border-double border-[#8b6b4a] p-6 rounded-sm shadow-2xl text-center min-h-[500px] flex flex-col justify-center">
+            <h2 class="text-3xl font-extrabold gold-text mb-3">여정대 투표</h2>
+            <p class="text-[#bcaaa4] mb-8 font-medium">투표 현황: ${Object.keys(gameState.votes).length} / ${gameState.players.length}</p>
+            
+            <div class="stone-slot p-5 rounded-sm mb-10">
+              <span class="text-sm text-[#8d6e63] font-bold block mb-3 uppercase tracking-widest">지목된 인원 (${gameState.selectedTeam.length}명)</span>
+              <div class="flex flex-wrap justify-center gap-3">
+                ${gameState.selectedTeam.map(uid => `
+                  <span class="bg-[#3e2723] border border-[#5d4037] px-4 py-1.5 rounded-sm text-[#f5deb3] font-bold shadow-md">
+                    ${gameState.players.find(p=>p.uid === uid).name}
+                  </span>
+                `).join('')}
+              </div>
+            </div>
+
+            ${myVote ? `
+              <div class="text-center p-6 border-2 border-[#d4af37] border-dashed rounded-sm">
+                <p class="text-[#f5deb3] font-bold text-xl mb-2">당신의 선택: <span class="${myVote === 'approve' ? 'text-[#82b1ff]' : 'text-[#ff8a80]'}">${myVote === 'approve' ? '찬성' : '반대'}</span></p>
+                <p class="text-[#bcaaa4]">다른 플레이어의 투표를 기다리고 있습니다...</p>
+              </div>
+            ` : (getMe() ? `
+              <div class="flex gap-5 animate-fadeIn">
+                <button onclick="castVote('approve')" class="flex-1 py-10 royal-btn rounded-sm font-bold text-3xl flex flex-col items-center gap-4">
+                  <i data-lucide="check-circle-2" class="w-12 h-12 text-[#82b1ff]"></i> 찬성
+                </button>
+                <button onclick="castVote('reject')" class="flex-1 py-10 blood-btn rounded-sm font-bold text-3xl flex flex-col items-center gap-4">
+                  <i data-lucide="x-circle" class="w-12 h-12 text-[#ff8a80]"></i> 반대
+                </button>
+              </div>
+            ` : `<div class="text-center gold-text text-xl">당신은 이 게임의 관전자입니다.</div>`)}
+          </div>
+        `;
+      }
+      else if (gameState.status === 'quest') {
+        const amIOnQuest = currentUser && gameState.selectedTeam.includes(currentUser.uid);
+        const myCard = currentUser ? gameState.questCards[currentUser.uid] : null;
+        const myPlayer = getMe();
+        const isEvil = myPlayer && myPlayer.team === 'evil';
+
+        content += `
+          <div class="parchment-panel border-[6px] border-double border-[#8b6b4a] p-6 rounded-sm shadow-2xl text-center min-h-[500px] flex flex-col justify-center">
+            <h2 class="text-3xl font-extrabold gold-text mb-3">신앙여정 진행</h2>
+            <p class="text-[#bcaaa4] mb-10 font-medium">제출 현황: ${Object.keys(gameState.questCards).length} / ${gameState.selectedTeam.length}</p>
+            
+            ${!amIOnQuest ? `
+              <div class="text-center p-6 border-2 border-[#5d4037] border-dashed rounded-sm">
+                <p class="text-[#f5deb3] font-bold text-xl mb-2">여정대가 임무를 수행 중입니다...</p>
+                <div class="flex justify-center gap-2 mt-4">
+                  ${gameState.selectedTeam.map(uid => `<i data-lucide="user" class="w-8 h-8 ${gameState.questCards[uid] ? 'text-[#d4af37]' : 'text-[#5d4037]'}"></i>`).join('')}
+                </div>
+              </div>
+            ` : (myCard ? `
+              <div class="text-center p-6 border-2 border-[#d4af37] border-dashed rounded-sm">
+                <p class="text-[#f5deb3] font-bold text-xl mb-2">제출 완료: <span class="${myCard === 'success' ? 'text-[#82b1ff]' : 'text-[#ff8a80]'}">${myCard === 'success' ? '성공' : '실패'}</span></p>
+                <p class="text-[#bcaaa4]">다른 대원들의 결과를 기다리고 있습니다...</p>
+              </div>
+            ` : `
+              <div class="flex-1 flex flex-col justify-center animate-fadeIn">
+                <div class="mb-8">
+                  <h4 class="text-3xl font-bold text-[#f5deb3] mb-3">당신의 선택</h4>
+                  ${!isEvil ? `<p class="text-[#64b5f6] text-sm font-bold bg-[#0d47a1]/30 py-2 rounded-sm border border-[#1565c0]">선 진영은 '성공'만 낼 수 있습니다.</p>` : ''}
+                </div>
+                <div class="flex gap-5">
+                  <button onclick="castQuestCard('success')" class="flex-1 py-12 royal-btn rounded-sm font-bold text-3xl flex flex-col items-center gap-4">
+                    <i data-lucide="shield" class="w-14 h-14 text-[#82b1ff]"></i> 성공
+                  </button>
+                  ${isEvil ? `
+                    <button onclick="castQuestCard('fail')" class="flex-1 py-12 blood-btn rounded-sm font-bold text-3xl flex flex-col items-center gap-4">
+                      <i data-lucide="sword" class="w-14 h-14 text-[#ff8a80]"></i> 실패
+                    </button>
+                  ` : ''}
+                </div>
+              </div>
+            `)}
+          </div>
+        `;
+      }
+      else if (gameState.status === 'quest_result') {
+        const latestResult = gameState.history[gameState.history.length - 1];
+        const isFailed = latestResult.result === 'fail';
+        const needsTwoFailsStr = (gameState.players.length >= 7 && latestResult.round === 3) ? '(이번 라운드는 2장 필요)' : '';
+
+        content += `
+          <div class="parchment-panel border-[6px] border-double border-[#8b6b4a] p-6 rounded-sm shadow-2xl text-center flex flex-col justify-center min-h-[500px]">
+            <h2 class="text-4xl font-extrabold mb-4 gold-text">여정 결과 서신</h2>
+            <h3 class="text-3xl font-extrabold mb-10 drop-shadow-md ${isFailed ? 'text-[#ff5252]' : 'text-[#64b5f6]'}">${isFailed ? '임무 실패!' : '임무 성공!'}</h3>
+            <div class="flex justify-center gap-4 mb-10 flex-wrap">
+              ${latestResult.cards.map((card, i) => `
+                <div class="w-24 h-32 rounded-sm flex items-center justify-center shadow-[0_10px_20px_rgba(0,0,0,0.6)] border-2 animate-fadeIn ${card === 'success' ? 'bg-[linear-gradient(to_bottom,#1565c0,#0d47a1)] border-[#82b1ff] text-[#e3f2fd]' : 'bg-[linear-gradient(to_bottom,#990000,#5c0000)] border-[#ff8a80] text-[#ffebee]'}" style="animation-delay: ${i * 150}ms; animation-fill-mode: both;">
+                  <i data-lucide="${card === 'success' ? 'shield' : 'sword'}" class="w-10 h-10"></i>
+                </div>
+              `).join('')}
+            </div>
+            <div class="stone-slot p-4 mb-10 mx-4">
+              <p class="text-[#f5deb3] font-bold text-lg">실패 카드: <span class="text-[#ff5252] text-2xl mx-2">${latestResult.fails}</span> 장</p>
+              ${needsTwoFailsStr ? `<p class="text-sm font-normal text-[#bcaaa4] mt-1">${needsTwoFailsStr}</p>` : ''}
+            </div>
+            ${isHost() ? `
+              <button onclick="proceedFromQuestResult()" class="w-full py-4 gold-btn font-bold text-xl">방장: 다음 단계로</button>
+            ` : `
+              <div class="text-[#bcaaa4] font-bold p-3 border border-dashed border-[#5d4037]">방장이 결과를 확인 중입니다...</div>
+            `}
+          </div>
+        `;
+      }
+      else if (gameState.status === 'evil_discussion') {
+        content += `
+          <div class="bg-[linear-gradient(to_bottom_right,#3e1111,#1a0505)] border-[6px] border-double border-[#990000] p-8 rounded-sm shadow-2xl text-center flex flex-col justify-center min-h-[500px]">
+            <i data-lucide="alert-triangle" class="w-20 h-20 text-[#ff5252] mx-auto mb-6 drop-shadow-[0_0_15px_rgba(255,82,82,0.6)]"></i>
+            <h2 class="text-4xl font-extrabold text-[#ff8a80] mb-6">악 진영 모의 시간</h2>
+            <p class="text-[#d7ccc8] text-lg mb-10 leading-relaxed font-medium">헤롯이 모세를 암살하기 전,<br/>채팅창을 통해 악 진영끼리 상의하세요.</p>
+            ${isHost() ? `
+              <button onclick="endEvilDiscussion()" class="w-full py-4 blood-btn font-bold text-xl">방장: 모의 종료 (암살 대상 지목으로)</button>
+            ` : `
+              <div class="text-[#ff8a80] font-bold p-3 border border-dashed border-[#990000]">방장이 모의를 종료할 때까지 기다려 주세요.</div>
+            `}
+          </div>
+        `;
+      }
+      else if (gameState.status === 'assassination') {
+        const herod = gameState.players.find(p => p.roleId === 'herod');
+        const amIHerod = currentUser && herod && currentUser.uid === herod.uid;
+
+        content += `
+          <div class="bg-[linear-gradient(to_bottom_right,#3e1111,#1a0505)] border-[6px] border-double border-[#990000] p-6 rounded-sm shadow-2xl text-center min-h-[500px] flex flex-col justify-center">
+            <h2 class="text-4xl font-extrabold text-[#ff8a80] mb-3 drop-shadow-[0_2px_4px_rgba(0,0,0,1)]">마지막 위기!</h2>
+            <p class="text-[#d7ccc8] mb-8 font-medium">선 진영이 3번의 여정을 성공했습니다. 하지만 악 진영에게 마지막 기회가 있습니다.</p>
+            <div class="stone-slot p-5 rounded-sm mb-8 border-[#990000]">
+              <h3 class="text-2xl font-bold text-[#f5deb3] mb-2">암살자 <span class="text-[#ff5252] font-extrabold drop-shadow-[0_0_8px_rgba(255,82,82,0.5)]">헤롯 (${herod?.name})</span>의 턴</h3>
+              <p class="text-[#bcaaa4] text-sm">모세 역할을 한 자를 정확히 찾아내면 역전승합니다.</p>
+            </div>
+            
+            <div class="grid grid-cols-2 gap-4 mb-8">
+              ${gameState.players.filter(p => p.team === 'good').map(p => `
+                <button ${amIHerod ? `onclick="selectAssassination('${p.uid}')"` : 'disabled'} class="p-4 rounded-sm text-xl font-bold transition-all ${gameState.assassinationTarget === p.uid ? 'blood-btn scale-105 shadow-[0_0_20px_rgba(255,82,82,0.6)]' : 'medieval-btn opacity-90'}">
+                  ${p.name}
+                </button>
+              `).join('')}
+            </div>
+
+            ${amIHerod ? `
+              <button onclick="confirmAssassination()" ${!gameState.assassinationTarget ? 'disabled' : ''} class="w-full py-5 bg-[linear-gradient(to_bottom,#990000,#5c0000)] hover:bg-[linear-gradient(to_bottom,#b71c1c,#7f0000)] border-2 border-[#ff5252] text-white rounded-sm font-bold text-2xl shadow-[0_10px_20px_rgba(0,0,0,0.8)] transition-all animate-fadeIn ${!gameState.assassinationTarget ? 'opacity-50 cursor-not-allowed' : ''}">
+                [ ${gameState.players.find(p => p.uid === gameState.assassinationTarget)?.name || '?'} ] 암살 확정
+              </button>
+            ` : `
+               <div class="text-[#ff8a80] font-bold p-3 border border-dashed border-[#990000]">헤롯이 암살 대상을 고민 중입니다...</div>
+            `}
+          </div>
+        `;
+      }
+      else if (gameState.status === 'end') {
+        const isGoodWin = gameState.winner === 'good';
+        content += `
+          <div class="p-8 rounded-sm shadow-[0_20px_50px_rgba(0,0,0,0.9)] border-[8px] border-double text-center ${isGoodWin ? 'bg-[linear-gradient(to_bottom_right,#0b2347,#051024)] border-[#1565c0]' : 'bg-[linear-gradient(to_bottom_right,#3e1111,#1a0505)] border-[#b71c1c]'}">
+            <i data-lucide="${isGoodWin ? 'shield' : 'sword'}" class="w-20 h-20 ${isGoodWin ? 'text-[#64b5f6] drop-shadow-[0_0_15px_rgba(100,181,246,0.6)]' : 'text-[#ff5252] drop-shadow-[0_0_15px_rgba(255,82,82,0.6)]'} mx-auto mb-6"></i>
+            <h1 class="text-5xl font-extrabold mb-6 drop-shadow-[0_4px_6px_rgba(0,0,0,1)] ${isGoodWin ? 'text-[#82b1ff]' : 'text-[#ff8a80]'}">${isGoodWin ? '선 진영 승리!' : '악 진영 승리!'}</h1>
+            <p class="text-xl text-[#f5deb3] mb-10 font-bold leading-relaxed bg-black/50 p-4 rounded-sm border border-[#4e342e] shadow-inner">${gameState.winReason}</p>
+            
+            <div class="stone-slot p-6 mb-10 text-left border-[#8b6b4a]">
+              <h3 class="text-2xl font-bold gold-text mb-6 border-b-2 border-[#5d4037] pb-3 text-center uppercase">모든 역할 공개</h3>
+              <div class="space-y-6">
+                <div>
+                  <h4 class="text-[#64b5f6] font-bold mb-3 text-lg">빛의 자녀들 (선 진영)</h4>
+                  <div class="flex flex-wrap gap-3">
+                    ${gameState.players.filter(p => p.team === 'good').map(p => `
+                      <span class="bg-[#0d47a1]/40 px-4 py-2 rounded-sm text-[#e3f2fd] border border-[#1565c0] shadow-md">
+                        <span class="font-bold text-lg">${p.name}</span> <span class="text-[#82b1ff] text-sm ml-2">(${p.characterName} / ${p.role})</span>
+                      </span>
+                    `).join('')}
+                  </div>
+                </div>
+                <div>
+                  <h4 class="text-[#ff8a80] font-bold mb-3 text-lg">어둠의 권세 (악 진영)</h4>
+                  <div class="flex flex-wrap gap-3">
+                    ${gameState.players.filter(p => p.team === 'evil').map(p => `
+                      <span class="bg-[#7f0000]/40 px-4 py-2 rounded-sm text-[#ffebee] border border-[#b71c1c] shadow-md">
+                        <span class="font-bold text-lg">${p.name}</span> <span class="text-[#ff8a80] text-sm ml-2">(${p.characterName} / ${p.role})</span>
+                      </span>
+                    `).join('')}
+                  </div>
+                </div>
+              </div>
+            </div>
+            ${isHost() ? `
+              <button onclick="showResetModal()" class="w-full py-5 gold-btn font-bold text-2xl uppercase tracking-widest">새 게임 시작</button>
+            ` : `
+              <div class="text-[#bcaaa4] font-bold p-3 border border-dashed border-[#5d4037]">방장이 새 게임을 시작하기를 기다리는 중...</div>
+            `}
+          </div>
+        `;
+      }
+
+      app.innerHTML = content;
+      lucide.createIcons();
+      
+      if (gameState.status === 'setup') {
+        const nameInput = document.getElementById('playerNameInput');
+        if (nameInput && !getMe()) nameInput.focus();
+      }
+    }
+
+    // 시스템 시작
+    initAuth();
+  </script>
+</body>
+</html>
