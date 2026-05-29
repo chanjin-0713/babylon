@@ -33,7 +33,7 @@
     
     .blood-btn { background: linear-gradient(to bottom, #990000, #5c0000); border: 2px solid #ff5252; color: #ffebee; box-shadow: 0 4px 8px rgba(0,0,0,0.7); transition: all 0.2s; }
     .blood-btn:hover:not(:disabled) { background: linear-gradient(to bottom, #b71c1c, #7f0000); }
-    .blood-btn:active:not(:disabled) { background: #5c0000; transform: translateY(2px); box-shadow: inset 0 4px 6px rgba(0,0,0,0.8); }
+    .blood-btn:active:not(:disabled) { background: #5c0000; transform: translateY(2px); box-shadow: inset 0 4px 6px rgba(0,0,0,0.8); transform: translateY(2px); }
     .blood-btn:disabled { opacity: 0.5; cursor: not-allowed; }
     
     .royal-btn { background: linear-gradient(to bottom, #1565c0, #0d47a1); border: 2px solid #82b1ff; color: #e3f2fd; box-shadow: 0 4px 8px rgba(0,0,0,0.7); transition: all 0.2s; }
@@ -61,25 +61,26 @@
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
     import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-    import { getFirestore, doc, setDoc, getDoc, updateDoc, onSnapshot, arrayUnion, arrayRemove } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+    import { getFirestore, doc, setDoc, getDoc, updateDoc, onSnapshot, arrayUnion } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
     // --- Firebase Initialization ---
-    const firebaseConfig = {
-    	apiKey: "AIzaSyDOVJQHcvvk3kN3hVy-krXNRvBdvmNkrxM",
-   	  authDomain: "babylon-15548.firebaseapp.com",
-    	projectId: "babylon-15548",
-    	storageBucket: "babylon-15548.firebasestorage.app",
-    	messagingSenderId: "177872947585",
-    	appId: "1:177872947585:web:5a33b674f5b9a1a2e6c080"
-	  };
+    const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {
+      apiKey: "AIzaSyDOVJQHcvvk3kN3hVy-krXNRvBdvmNkrxM",
+      authDomain: "babylon-15548.firebaseapp.com",
+      projectId: "babylon-15548",
+      storageBucket: "babylon-15548.firebasestorage.app",
+      messagingSenderId: "177872947585",
+      appId: "1:177872947585:web:5a33b674f5b9a1a2e6c080"
+    };
     const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
     
     const app = initializeApp(firebaseConfig);
     const auth = getAuth(app);
     const db = getFirestore(app);
 
-    // --- 게임 설정 상수 ---
-    const MIN_PLAYERS = 5;
+    // --- STREAMING_CHUNK: Defining Game Constants and Roles ---
+    // 최소 플레이어 인원을 1명으로 조정
+    const MIN_PLAYERS = 1;
     const MAX_PLAYERS = 10;
 
     const GOOD_ROLES_ORDER = [
@@ -98,13 +99,32 @@
       { roleId: 'pharaoh', characterName: '바로', role: '오베론', desc: '악 진영의 정체를 모두 압니다.', img: 'https://image.pollinations.ai/prompt/classical%20oil%20painting%20of%20Egyptian%20Pharaoh%20exodus?width=400&height=400&nologo=true&seed=10' }
     ];
 
+    // 1~10인용 역할 배분 (선, 악 비율 설정)
     const ROLE_COUNTS = {
-      5: [3, 2], 6: [4, 2], 7: [4, 3], 8: [5, 3], 9: [6, 3], 10: [6, 4]
+      1: [1, 0], // 1인: 선 1명, 악 0명
+      2: [1, 1], // 2인: 선 1명, 악 1명
+      3: [2, 1], // 3인: 선 2명, 악 1명
+      4: [3, 1], // 4인: 선 3명, 악 1명
+      5: [3, 2], 
+      6: [4, 2], 
+      7: [4, 3], 
+      8: [5, 3], 
+      9: [6, 3], 
+      10: [6, 4]
     };
 
+    // 1~10인용 성전 여정 필요 대원수 설정
     const QUEST_SIZES = {
-      5: [2, 3, 2, 3, 3], 6: [2, 3, 4, 3, 4], 7: [2, 3, 3, 4, 4],
-      8: [3, 4, 4, 5, 5], 9: [3, 4, 4, 5, 5], 10: [3, 4, 4, 5, 5]
+      1: [1, 1, 1, 1, 1],
+      2: [1, 1, 1, 1, 1],
+      3: [2, 1, 2, 1, 2],
+      4: [2, 2, 2, 2, 2],
+      5: [2, 3, 2, 3, 3], 
+      6: [2, 3, 4, 3, 4], 
+      7: [2, 3, 3, 4, 4],
+      8: [3, 4, 4, 5, 5], 
+      9: [3, 4, 4, 5, 5], 
+      10: [3, 4, 4, 5, 5]
     };
 
     const shuffle = (array) => {
@@ -116,7 +136,7 @@
       return arr;
     };
 
-    // --- 글로벌 상태 ---
+    // --- STREAMING_CHUNK: Initializing State Variables ---
     let myUid = null;
     let localPlayerName = '';
     let roomCode = null;
@@ -147,7 +167,7 @@
       winReason: ''
     };
 
-    // --- Auth Flow ---
+    // --- STREAMING_CHUNK: Authentication Handling ---
     const initAuth = async () => {
       try {
         if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
@@ -172,7 +192,7 @@
 
     initAuth();
 
-    // --- 헬퍼 함수 ---
+    // --- STREAMING_CHUNK: Room Sync and Database Helpers ---
     window.showError = (msg) => {
       errorMsg = msg;
       render();
@@ -200,14 +220,14 @@
           render();
         } else {
           showError("방이 삭제되었거나 존재하지 않습니다.");
-          leaveRoomLocal();
+          window.leaveRoomLocal();
         }
       }, (error) => {
         showError("연결 오류가 발생했습니다.");
       });
     };
 
-    // --- 호스트 자동 진행 로직 ---
+    // --- STREAMING_CHUNK: Host Automations & Transitions ---
     const handleHostAutoTransitions = () => {
       if (!isHost) return;
 
@@ -240,7 +260,7 @@
 
       // 여정 카드 제출 완료 처리
       if (roomState.gameState === 'quest' && roomState.questCards.length >= roomState.selectedTeam.length) {
-        // 이미 처리되었는지 방지 (questCards가 비워지기 전)
+        // 이미 처리되었는지 방지
         if (roomState.readyPlayers.length === 0) return; 
 
         const failCount = roomState.questCards.filter(c => c === 'fail').length;
@@ -259,13 +279,13 @@
         updateRoom({ 
           gameState: 'quest_result', 
           history: newHistory,
-          readyPlayers: [] // 락 해제용
+          readyPlayers: [] // 락 해제
         });
       }
     };
 
 
-    // --- 액션 핸들러 (창 객체에 바인딩) ---
+    // --- STREAMING_CHUNK: Action Handlers (Button events) ---
     window.setLocalName = (e) => { localPlayerName = e.target.value.trim(); };
     window.setJoinCode = (e) => { e.target.value = e.target.value.toUpperCase(); };
 
@@ -354,7 +374,7 @@
       const allRoles = shuffle([...goodRoles, ...evilRoles]);
       
       const assignedPlayers = shuffle(roomState.players).map((p, i) => ({
-        ...p, id: p.uid, ...allRoles[i] // id 필드도 유지
+        ...p, id: p.uid, ...allRoles[i]
       }));
 
       await updateRoom({
@@ -376,14 +396,14 @@
     };
 
     window.endPreDiscussion = async () => {
-      const isLeader = roomState.players[roomState.leaderIndex].uid === myUid;
+      const isLeader = roomState.players[roomState.leaderIndex]?.uid === myUid;
       if (!isLeader) return;
       await updateRoom({ gameState: 'board' });
     };
 
     window.toggleSelection = async (targetUid) => {
-      const isLeader = roomState.players[roomState.leaderIndex].uid === myUid;
-      if (!isLeader) return;
+      const isLeader = roomState.players[roomState.leaderIndex]?.uid === myUid;
+      if (!isLeader || roomState.gameState !== 'board') return;
       
       const reqPlayers = QUEST_SIZES[roomState.players.length][roomState.currentRound];
       let newSelection = [...roomState.selectedTeam];
@@ -399,22 +419,13 @@
     };
 
     window.confirmTeam = async () => {
-      const isLeader = roomState.players[roomState.leaderIndex].uid === myUid;
+      const isLeader = roomState.players[roomState.leaderIndex]?.uid === myUid;
       if (!isLeader) return;
       
       const reqPlayers = QUEST_SIZES[roomState.players.length][roomState.currentRound];
       if (roomState.selectedTeam.length !== reqPlayers) return;
 
-      if (roomState.currentRound === 0) {
-        await updateRoom({ gameState: 'discussion' });
-      } else {
-        await updateRoom({ gameState: 'voting', votes: {}, readyPlayers: [] });
-      }
-    };
-
-    window.startVoting = async () => {
-      const isLeader = roomState.players[roomState.leaderIndex].uid === myUid;
-      if (!isLeader) return;
+      // discussion 상태를 거치지 않고 바로 투표로 안전하게 진입
       await updateRoom({ gameState: 'voting', votes: {}, readyPlayers: [] });
     };
 
@@ -429,7 +440,10 @@
       if (!myUid || roomState.readyPlayers.includes(myUid)) return;
       if (!roomState.selectedTeam.includes(myUid)) return;
 
-      // 상태 업데이트를 한 번에 전송하여 레이스 컨디션 최소화
+      // 선 진영은 무조건 'success'만 가능
+      const myPlayer = roomState.players.find(p => p.uid === myUid);
+      if (myPlayer?.team === 'good' && cardType === 'fail') return;
+
       await updateRoom({
         questCards: arrayUnion(cardType),
         readyPlayers: arrayUnion(myUid)
@@ -441,8 +455,15 @@
       const goodWins = roomState.history.filter(h => h.result === 'success').length;
       const evilWins = roomState.history.filter(h => h.result === 'fail').length;
 
+      // 소수 인원 테스트 등에서 악 진영이 아예 없는 상황 체크
+      const hasEvil = roomState.players.some(p => p.team === 'evil');
+
       if (goodWins >= 3) {
-        await updateRoom({ gameState: 'evil_discussion' });
+        if (hasEvil) {
+          await updateRoom({ gameState: 'evil_discussion' });
+        } else {
+          await updateRoom({ gameState: 'end', winner: 'good', winReason: '신앙여정 3회 대성공으로 선 진영의 성전 완수!' });
+        }
       } else if (evilWins >= 3) {
         await updateRoom({ gameState: 'end', winner: 'evil', winReason: '신앙여정 3회 실패로 악 진영 승리!' });
       } else {
@@ -452,7 +473,9 @@
           rejectCount: 0,
           leaderIndex: (roomState.leaderIndex + 1) % roomState.players.length,
           selectedTeam: [],
-          readyPlayers: []
+          readyPlayers: [],
+          questCards: [],
+          votes: {}
         });
       }
     };
@@ -501,7 +524,7 @@
       uiState = { isSecretVisible: false, localAssassinationTarget: null };
     };
 
-    // --- 지식 가져오기 헬퍼 ---
+    // --- STREAMING_CHUNK: Knowledge Handlers ---
     const getKnowledge = (player) => {
       if (player.roleId === 'moses') {
         const knownEvils = roomState.players.filter(p => p.team === 'evil' && p.roleId !== 'nebuchadnezzar').map(p => p.name);
@@ -518,7 +541,7 @@
       return '특별히 알고 있는 정보가 없습니다.';
     };
 
-    // --- UI 렌더러 ---
+    // --- STREAMING_CHUNK: Core HTML Generation and UI ---
     const getErrorHTML = () => errorMsg ? `
       <div class="fixed top-4 left-0 right-0 z-[100] flex justify-center animate-slideInDown pointer-events-none">
         <div class="bg-[#b71c1c] text-white px-6 py-3 rounded-sm border-2 border-[#ff5252] font-bold shadow-2xl flex items-center gap-3">
@@ -535,6 +558,48 @@
       </div>
     `;
 
+    const getBoardHTML = () => {
+      const pCount = roomState.players.length;
+      if (!QUEST_SIZES[pCount]) return '';
+      const reqPlayersArr = QUEST_SIZES[pCount];
+      
+      const roundTrack = reqPlayersArr.map((req, idx) => {
+        const hist = roomState.history[idx];
+        let statusClass = "bg-[#140b08] border-[#3e2723] text-[#8d6e63]"; 
+        let iconHTML = `<span class="text-lg">${req}</span>`;
+        if (hist) {
+          if (hist.result === 'success') {
+            statusClass = "bg-[#1565c0] border-[#82b1ff] text-white shadow-[0_0_10px_#1565c0]";
+            iconHTML = `<i data-lucide="shield-check" class="w-6 h-6"></i>`;
+          } else {
+            statusClass = "bg-[#b71c1c] border-[#ff5252] text-white shadow-[0_0_10px_#b71c1c]";
+            iconHTML = `<i data-lucide="skull" class="w-5 h-5"></i>`;
+          }
+        } else if (idx === roomState.currentRound) {
+          statusClass = "bg-[#d4af37] border-[#ffe066] text-[#1a110c] shadow-[0_0_15px_#d4af37] animate-pulse";
+        }
+        return `<div class="w-12 h-12 rounded-full border-2 flex items-center justify-center font-bold ${statusClass}">${iconHTML}</div>`;
+      }).join('');
+
+      const rejectTrack = Array(5).fill(0).map((_, i) =>
+        `<div class="w-3 h-3 rounded-full border border-[#5d4037] ${i < roomState.rejectCount ? 'bg-[#ff5252] shadow-[0_0_5px_#ff5252]' : 'bg-[#140b08]'}"></div>`
+      ).join('');
+
+      return `
+        <div class="mb-6 p-4 stone-slot rounded-sm">
+          <div class="flex justify-between items-center mb-4">
+            ${roundTrack}
+          </div>
+          <div class="flex justify-between items-center px-2">
+            <span class="text-xs text-[#8d6e63] font-bold uppercase">부결 횟수</span>
+            <div class="flex gap-2">${rejectTrack}</div>
+          </div>
+        </div>
+      `;
+    };
+
+
+    // --- STREAMING_CHUNK: Component Render Logic ---
     const renderLobby = () => {
       return getErrorHTML() + getTitleHTML() + `
         <div class="parchment-panel border-[6px] border-double border-[#8b6b4a] p-6 rounded-sm shadow-[0_15px_35px_rgba(0,0,0,0.8)] text-center animate-fadeIn">
@@ -640,7 +705,7 @@
               ` : `
                 <div class="w-full flex flex-col items-center animate-fadeIn">
                   <div class="relative w-32 h-32 mx-auto mb-4 border-[4px] border-[#8b6b4a] rounded-sm shadow-[0_5px_15px_rgba(0,0,0,0.9)] overflow-hidden bg-[#140b08]">
-                    <img src="${myPlayer.img}" class="w-full h-full object-cover">
+                    <img src="${myPlayer.img || 'https://placehold.co/400x400/2f221a/e6d5c3?text=' + myPlayer.characterName}" class="w-full h-full object-cover">
                     <div class="absolute inset-0 z-20 ring-inset ring-[4px] ring-black/40 pointer-events-none"></div>
                   </div>
 
@@ -673,294 +738,225 @@
         `;
       }
       else if (roomState.gameState === 'pre_discussion') {
-        content += `
-          <div class="parchment-panel border-[6px] border-double border-[#8b6b4a] p-8 rounded-sm shadow-2xl text-center flex flex-col justify-center min-h-[450px] animate-fadeIn">
-            <i data-lucide="message-circle" class="w-16 h-16 text-[#d4af37] mx-auto mb-4 drop-shadow-lg"></i>
-            <h2 class="text-3xl font-extrabold gold-text mb-2">여정대 지목 전 토론</h2>
+        const reqPlayers = QUEST_SIZES[roomState.players.length][roomState.currentRound];
+        content += getBoardHTML() + `
+          <div class="parchment-panel border-[6px] border-double border-[#8b6b4a] p-8 rounded-sm shadow-2xl text-center flex flex-col justify-center min-h-[400px] animate-fadeIn">
+            <i data-lucide="message-circle" class="w-12 h-12 text-[#d4af37] mx-auto mb-4 drop-shadow-lg"></i>
+            <h2 class="text-2xl font-extrabold gold-text mb-2">여정대 지목 전 토론</h2>
             
             <div class="my-6">
-              <h3 class="text-xl text-[#bcaaa4] mb-2 font-bold">이번 신앙여정 대장</h3>
-              <div class="flex items-center justify-center gap-3">
-                <i data-lucide="crown" class="w-8 h-8 text-[#d4af37] drop-shadow-md"></i>
-                <p class="text-4xl font-extrabold text-[#f5deb3] drop-shadow-md">${currentLeader.name} ${isLeader ? '<span class="text-lg text-[#d4af37]">(나)</span>' : ''}</p>
+              <h3 class="text-lg text-[#bcaaa4] mb-2 font-bold">이번 신앙여정 대장</h3>
+              <div class="flex items-center justify-center gap-2 mb-4">
+                <i data-lucide="crown" class="w-8 h-8 text-[#d4af37]"></i>
+                <span class="text-3xl font-bold text-[#f5deb3]">${currentLeader.name}</span>
               </div>
+              <p class="text-[#8d6e63] mt-2 mb-8 text-sm max-w-[250px] mx-auto leading-relaxed font-bold">
+                대장이 <strong class="text-[#d4af37] text-lg">${reqPlayers}명</strong>의 여정대를 고민하고 있습니다.<br>
+                자유롭게 토론하세요.
+              </p>
             </div>
-
-            <p class="text-[#d7ccc8] mb-8 font-medium text-base leading-relaxed">대장이 여정대를 지목하기 전입니다.<br/>누구를 보낼지 자유롭게 대화하세요.</p>
             
             ${isLeader ? `
-              <button onclick="endPreDiscussion()" class="w-full py-4 royal-btn font-bold text-xl">토론 종료 및 여정대 지목하기</button>
+              <button onclick="endPreDiscussion()" class="w-full py-4 gold-btn text-xl font-bold rounded-sm shadow-lg">여정대 편성하기</button>
             ` : `
-              <div class="p-4 stone-slot text-[#bcaaa4] font-bold rounded-sm">대장(${currentLeader.name})이 다음 단계로 넘어갈 수 있습니다.</div>
+              <div class="stone-slot p-4 text-[#d7ccc8] font-bold rounded-sm"><i data-lucide="hourglass" class="inline w-5 h-5 animate-pulse mb-1"></i> 대장의 결정을 기다리는 중...</div>
             `}
           </div>
         `;
       }
-      else if (roomState.gameState === 'board' || roomState.gameState === 'select_team') {
+      else if (roomState.gameState === 'board') {
         const reqPlayers = QUEST_SIZES[roomState.players.length][roomState.currentRound];
+        const isReadyToConfirm = roomState.selectedTeam.length === reqPlayers;
         
-        content += `
-          <div class="flex justify-between items-end mb-6 border-b-2 border-[#5d4037] pb-2 animate-fadeIn">
-            <h1 class="text-3xl font-extrabold gold-text font-medieval tracking-widest drop-shadow-md">BABYLON</h1>
-            <span class="text-[#d4af37] font-bold bg-[#2b1b17] px-3 py-1 rounded-sm border-2 border-[#5d4037] shadow-md text-sm">라운드 ${roomState.currentRound + 1}/5</span>
-          </div>
-          
-          <div class="flex justify-between items-center parchment-panel p-4 rounded-sm shadow-lg border-[4px] border-double border-[#8b6b4a] mb-6 relative animate-fadeIn">
-            ${QUEST_SIZES[roomState.players.length].map((size, idx) => {
-              const isCurrent = idx === roomState.currentRound;
-              const pastResult = roomState.history[idx];
-              let circleClass = "w-10 h-10 sm:w-12 sm:h-12 flex items-center justify-center font-bold text-lg sm:text-xl transition-all rounded-full ";
-              let innerHTML = size;
-              
-              if (pastResult) {
-                circleClass += pastResult.result === 'success' ? 'royal-btn' : 'wax-seal border-2 border-[#ff8a80] text-red-100';
-                innerHTML = pastResult.result === 'success' ? '<i data-lucide="shield" class="w-5 h-5"></i>' : '<i data-lucide="sword" class="w-5 h-5"></i>';
-              } else if (isCurrent) {
-                circleClass += 'gold-btn scale-110 shadow-[0_0_15px_rgba(212,175,55,0.6)] z-10';
-              } else {
-                circleClass += 'stone-slot text-[#8d6e63]';
-              }
-
-              return `
-                <div class="flex flex-col items-center relative z-10">
-                  <div class="${circleClass}">${innerHTML}</div>
-                  ${(roomState.players.length >= 7 && idx === 3) ? '<span class="absolute -bottom-5 text-[9px] text-[#ff5252] font-bold whitespace-nowrap bg-[#140b08] px-1 border border-[#ff5252] rounded-sm">2실패 필요</span>' : ''}
-                </div>
-              `;
-            }).join('')}
-          </div>
-
-          <div class="bg-[#140b08]/90 p-4 rounded-sm shadow-lg border-2 border-[#4e342e] mb-6 animate-fadeIn">
-            <div class="flex justify-between items-center mb-2">
-              <span class="text-[#bcaaa4] font-bold uppercase tracking-wider text-sm">부결 트랙 <span class="text-[10px] normal-case">(5회 시 악 승리)</span></span>
-              <span class="text-[#ff5252] font-extrabold text-base">${roomState.rejectCount} / 5</span>
-            </div>
-            <div class="flex gap-2 h-3">
-              ${[1,2,3,4,5].map(i => `<div class="flex-1 rounded-sm border border-[#140b08] shadow-inner ${i <= roomState.rejectCount ? 'bg-[#b71c1c] shadow-[0_0_8px_rgba(239,68,68,0.8)]' : 'bg-[#2b1b17]'}"></div>`).join('')}
-            </div>
-          </div>
-
-          <div class="parchment-panel p-5 rounded-sm shadow-[0_15px_35px_rgba(0,0,0,0.9)] border-[6px] border-double border-[#8b6b4a] animate-fadeIn">
-            <div class="mb-5 text-center border-b border-[#5d4037] pb-4">
-              <h3 class="text-xl font-bold gold-text mb-1">여정대 지목</h3>
-              <p class="text-[#d7ccc8] font-medium text-sm">대장 <strong class="text-[#f5deb3]">${currentLeader.name}</strong> 님이 ${reqPlayers}명을 지목합니다.</p>
-              <p class="text-[#d4af37] font-extrabold mt-2">선택됨: ${roomState.selectedTeam.length} / ${reqPlayers}</p>
-            </div>
+        content += getBoardHTML() + `
+          <div class="parchment-panel border-[6px] border-double border-[#8b6b4a] p-4 rounded-sm shadow-2xl animate-fadeIn">
+            <h2 class="text-xl font-extrabold gold-text mb-4 text-center">여정대 편성 (${roomState.selectedTeam.length}/${reqPlayers})</h2>
             
-            <div class="grid grid-cols-2 gap-3 mb-6">
+            <div class="grid grid-cols-2 gap-2 mb-6">
               ${roomState.players.map(p => {
                 const isSelected = roomState.selectedTeam.includes(p.uid);
-                const isLeaderCard = p.uid === currentLeader.uid;
+                const isL = p.uid === currentLeader.uid;
                 return `
-                  <button ${isLeader ? `onclick="toggleSelection('${p.uid}')"` : 'disabled'} class="relative p-3 rounded-sm text-left transition-all font-bold text-lg ${isSelected ? 'bg-[#3e2723] border-2 border-[#d4af37] text-[#ffe066] shadow-[0_0_15px_rgba(212,175,55,0.4)]' : 'medieval-btn opacity-90 disabled:opacity-60'}">
-                    ${isLeaderCard ? '<i data-lucide="crown" class="absolute top-1 right-1 w-4 h-4 text-[#d4af37]"></i>' : ''}
-                    ${p.name}
-                  </button>
+                  <div onclick="toggleSelection('${p.uid}')" 
+                       class="relative p-3 rounded-sm border-2 cursor-pointer transition-all flex flex-col items-center justify-center
+                       ${isSelected ? 'bg-[#3e2723] border-[#d4af37] shadow-[inset_0_0_15px_rgba(212,175,55,0.3)]' : 'bg-[#140b08] border-[#4e342e] hover:border-[#8d6e63]'}
+                       ${!isLeader ? 'pointer-events-none' : ''}">
+                    ${isL ? '<i data-lucide="crown" class="absolute top-1 left-1 w-4 h-4 text-[#d4af37]"></i>' : ''}
+                    ${isSelected ? '<i data-lucide="check-circle-2" class="absolute top-1 right-1 w-4 h-4 text-green-500"></i>' : ''}
+                    <span class="font-bold text-[#f5deb3]">${p.name}</span>
+                  </div>
                 `;
               }).join('')}
             </div>
 
             ${isLeader ? `
-              <button onclick="confirmTeam()" ${roomState.selectedTeam.length !== reqPlayers ? 'disabled' : ''} class="w-full py-4 rounded-sm font-bold text-lg transition-all ${roomState.selectedTeam.length === reqPlayers ? 'gold-btn' : 'medieval-btn'}">지목 완료</button>
+              <button onclick="confirmTeam()" ${!isReadyToConfirm ? 'disabled' : ''} class="w-full py-4 ${isReadyToConfirm ? 'gold-btn' : 'medieval-btn'} text-xl font-bold rounded-sm">
+                여정대 확정하기
+              </button>
             ` : `
-              <div class="text-center p-3 stone-slot rounded-sm text-[#bcaaa4] font-bold text-sm">
-                대장이 여정대를 지목 중입니다...
+              <div class="stone-slot p-4 text-[#d7ccc8] font-bold rounded-sm text-center">
+                <i data-lucide="loader-2" class="inline w-5 h-5 animate-spin mb-1"></i> 대장이 팀을 편성 중입니다...
               </div>
-            `}
-          </div>
-        `;
-      }
-      else if (roomState.gameState === 'discussion') {
-        content += `
-          <div class="parchment-panel border-[6px] border-double border-[#8b6b4a] p-6 rounded-sm shadow-2xl text-center flex flex-col justify-center min-h-[450px] animate-fadeIn">
-            <h2 class="text-2xl font-extrabold gold-text mb-4">지목된 여정대 논의</h2>
-            
-            <div class="stone-slot p-4 rounded-sm mb-6 border-[#5d4037]">
-              <span class="text-xs text-[#8d6e63] font-bold block mb-2 uppercase tracking-widest">대장(${currentLeader.name})의 선택</span>
-              <div class="flex flex-wrap justify-center gap-2">
-                ${roomState.selectedTeam.map(uid => `
-                  <span class="bg-[#3e2723] border border-[#d4af37] px-3 py-1 rounded-sm text-[#ffe066] font-bold text-sm shadow-md">
-                    ${roomState.players.find(p=>p.uid === uid)?.name}
-                  </span>
-                `).join('')}
-              </div>
-            </div>
-
-            <p class="text-[#d7ccc8] mb-8 font-medium text-sm">이 인원 구성에 대해 찬반을 논의하세요.</p>
-            
-            ${isLeader ? `
-              <button onclick="startVoting()" class="w-full py-4 royal-btn font-bold text-lg">토론 종료 및 투표 시작</button>
-            ` : `
-              <div class="p-4 stone-slot text-[#bcaaa4] font-bold text-sm rounded-sm">대장(${currentLeader.name})이 투표를 시작할 수 있습니다.</div>
             `}
           </div>
         `;
       }
       else if (roomState.gameState === 'voting') {
+        const teamNames = roomState.selectedTeam.map(uid => roomState.players.find(p => p.uid === uid)?.name).join(', ');
         const myVote = roomState.votes[myUid];
-        const voteCount = Object.keys(roomState.votes || {}).length;
-
-        content += `
-          <div class="parchment-panel border-[6px] border-double border-[#8b6b4a] p-6 rounded-sm shadow-2xl text-center min-h-[500px] flex flex-col justify-center animate-fadeIn">
-            <h2 class="text-3xl font-extrabold gold-text mb-2">여정대 투표</h2>
-            <p class="text-[#bcaaa4] mb-6 font-medium text-sm">투표는 모두 완료되면 동시에 공개됩니다.</p>
+        
+        content += getBoardHTML() + `
+          <div class="parchment-panel border-[6px] border-double border-[#8b6b4a] p-6 rounded-sm shadow-2xl text-center animate-fadeIn">
+            <h2 class="text-2xl font-extrabold gold-text mb-2">신앙여정 파견 투표</h2>
+            <p class="text-[#bcaaa4] mb-6 text-sm">대장 <b>${currentLeader.name}</b>의 제안</p>
             
-            <div class="stone-slot p-4 rounded-sm mb-8">
-              <span class="text-xs text-[#8d6e63] font-bold block mb-2 uppercase tracking-widest">지목된 인원</span>
-              <div class="flex flex-wrap justify-center gap-2">
-                ${roomState.selectedTeam.map(uid => `
-                  <span class="bg-[#3e2723] border border-[#5d4037] px-3 py-1 rounded-sm text-[#f5deb3] font-bold text-sm">
-                    ${roomState.players.find(p=>p.uid === uid)?.name}
-                  </span>
-                `).join('')}
-              </div>
+            <div class="stone-slot p-4 mb-8 rounded-sm">
+              <span class="block text-[#8d6e63] font-bold text-xs uppercase mb-2">지목된 여정대</span>
+              <span class="text-[#f5deb3] font-bold text-lg">${teamNames}</span>
             </div>
 
             ${myVote ? `
-              <div class="flex-1 flex flex-col justify-center items-center">
-                <i data-lucide="check-circle" class="w-16 h-16 text-green-500 mb-4"></i>
-                <h4 class="text-xl font-bold text-[#f5deb3] mb-2">투표 완료</h4>
-                <p class="text-[#bcaaa4] text-sm">다른 플레이어들을 기다리는 중... (${voteCount}/${roomState.players.length})</p>
+              <div class="p-6 bg-[#140b08]/80 border-2 border-[#5d4037] rounded-sm flex flex-col items-center">
+                <i data-lucide="check-circle" class="w-12 h-12 text-green-500 mb-2"></i>
+                <p class="text-[#d7ccc8] font-bold">투표 완료. 결과를 기다립니다.</p>
+                <p class="text-xs text-[#8d6e63] mt-2">(${Object.keys(roomState.votes).length}/${roomState.players.length} 명 투표함)</p>
               </div>
             ` : `
-              <div class="flex-1 flex flex-col justify-center">
-                <h4 class="text-xl font-bold text-[#f5deb3] mb-6">당신의 선택은?</h4>
-                <div class="flex gap-4">
-                  <button onclick="submitVote('approve')" class="flex-1 py-8 royal-btn rounded-sm font-bold text-2xl flex flex-col items-center gap-3">
-                    <i data-lucide="thumbs-up" class="w-10 h-10 text-[#82b1ff]"></i> 찬성
-                  </button>
-                  <button onclick="submitVote('reject')" class="flex-1 py-8 blood-btn rounded-sm font-bold text-2xl flex flex-col items-center gap-3">
-                    <i data-lucide="thumbs-down" class="w-10 h-10 text-[#ff8a80]"></i> 반대
-                  </button>
-                </div>
+              <div class="flex gap-4">
+                <button onclick="submitVote('approve')" class="flex-1 py-5 gold-btn rounded-sm font-bold text-xl flex flex-col items-center gap-2">
+                  <i data-lucide="thumbs-up" class="w-8 h-8"></i> 파견 찬성
+                </button>
+                <button onclick="submitVote('reject')" class="flex-1 py-5 blood-btn rounded-sm font-bold text-xl flex flex-col items-center gap-2">
+                  <i data-lucide="thumbs-down" class="w-8 h-8"></i> 파견 반대
+                </button>
               </div>
             `}
           </div>
         `;
       }
       else if (roomState.gameState === 'quest') {
-        const amIOnTeam = roomState.selectedTeam.includes(myUid);
+        const isMyTurn = roomState.selectedTeam.includes(myUid);
         const hasSubmitted = roomState.readyPlayers.includes(myUid);
-        const isEvil = myPlayer.team === 'evil';
-        const submitCount = roomState.readyPlayers.length;
+        const isGood = myPlayer?.team === 'good';
 
-        content += `
-          <div class="parchment-panel border-[6px] border-double border-[#8b6b4a] p-6 rounded-sm shadow-2xl text-center min-h-[500px] flex flex-col justify-center animate-fadeIn">
-            <h2 class="text-3xl font-extrabold gold-text mb-3">신앙여정 진행</h2>
-            <p class="text-[#bcaaa4] mb-8 font-medium text-sm">여정대원들은 비밀리에 카드를 제출합니다.</p>
+        content += getBoardHTML() + `
+          <div class="parchment-panel border-[6px] border-double border-[#8b6b4a] p-6 rounded-sm shadow-2xl text-center animate-fadeIn">
+            <h2 class="text-2xl font-extrabold gold-text mb-4">여정 진행 중</h2>
             
-            ${amIOnTeam ? (
-              hasSubmitted ? `
-                <div class="flex-1 flex flex-col justify-center items-center">
-                  <i data-lucide="check-circle" class="w-16 h-16 text-green-500 mb-4"></i>
-                  <h4 class="text-xl font-bold text-[#f5deb3] mb-2">카드 제출 완료</h4>
-                  <p class="text-[#bcaaa4] text-sm">여정대원 기다리는 중... (${submitCount}/${roomState.selectedTeam.length})</p>
+            ${isMyTurn ? `
+              ${hasSubmitted ? `
+                <div class="p-6 stone-slot rounded-sm flex flex-col items-center">
+                  <i data-lucide="check-circle" class="w-12 h-12 text-green-500 mb-2"></i>
+                  <p class="text-[#d7ccc8] font-bold">여정 카드를 냈습니다.</p>
+                  <p class="text-xs text-[#8d6e63] mt-2">(${roomState.readyPlayers.length}/${roomState.selectedTeam.length} 명 완료)</p>
                 </div>
               ` : `
-                <div class="flex-1 flex flex-col justify-center">
-                  <div class="mb-6">
-                    <h4 class="text-xl font-bold text-[#f5deb3] mb-2">카드 제출</h4>
-                    ${!isEvil ? `<p class="text-[#64b5f6] text-xs font-bold bg-[#0d47a1]/30 py-1 rounded-sm border border-[#1565c0]">선 진영은 '성공'만 낼 수 있습니다.</p>` : ''}
-                  </div>
-                  <div class="flex gap-4">
-                    <button onclick="submitQuestCard('success')" class="flex-1 py-10 royal-btn rounded-sm font-bold text-2xl flex flex-col items-center gap-3">
-                      <i data-lucide="shield" class="w-12 h-12 text-[#82b1ff]"></i> 성공
-                    </button>
-                    ${isEvil ? `
-                      <button onclick="submitQuestCard('fail')" class="flex-1 py-10 blood-btn rounded-sm font-bold text-2xl flex flex-col items-center gap-3">
-                        <i data-lucide="sword" class="w-12 h-12 text-[#ff8a80]"></i> 실패
-                      </button>
-                    ` : ''}
-                  </div>
+                <p class="text-[#bcaaa4] mb-6 font-bold">당신은 여정대에 포함되었습니다. 결과를 선택하세요.</p>
+                <div class="flex flex-col gap-4">
+                  <button onclick="submitQuestCard('success')" class="w-full py-6 royal-btn rounded-sm font-bold text-2xl flex items-center justify-center gap-3">
+                    <i data-lucide="shield-check" class="w-8 h-8"></i> 성공 (Success)
+                  </button>
+                  <button onclick="submitQuestCard('fail')" ${isGood ? 'disabled title="선 진영은 실패를 낼 수 없습니다."' : ''} class="w-full py-6 blood-btn rounded-sm font-bold text-2xl flex items-center justify-center gap-3">
+                    <i data-lucide="skull" class="w-8 h-8"></i> 실패 (Fail)
+                  </button>
+                  ${isGood ? '<p class="text-xs text-[#ff5252] font-bold mt-1">※ 선 진영은 반드시 성공만 선택할 수 있습니다.</p>' : ''}
                 </div>
-              `
-            ) : `
-              <div class="flex-1 flex flex-col justify-center items-center p-6 stone-slot rounded-sm">
-                <i data-lucide="footprints" class="w-12 h-12 text-[#8d6e63] mb-4 animate-pulse"></i>
-                <h4 class="text-lg font-bold text-[#f5deb3] mb-2">당신은 이번 여정에 참여하지 않습니다.</h4>
-                <p class="text-[#bcaaa4] text-sm">여정대가 임무를 수행 중입니다... (${submitCount}/${roomState.selectedTeam.length})</p>
+              `}
+            ` : `
+              <div class="p-8 stone-slot rounded-sm flex flex-col items-center justify-center min-h-[250px]">
+                <i data-lucide="sword" class="w-12 h-12 text-[#8d6e63] mb-4 animate-bounce"></i>
+                <p class="text-[#d7ccc8] font-bold text-lg">여정대가 임무를 수행 중입니다...</p>
+                <p class="text-xs text-[#8d6e63] mt-2">(${roomState.readyPlayers.length}/${roomState.selectedTeam.length} 명 완료)</p>
               </div>
             `}
           </div>
         `;
       }
       else if (roomState.gameState === 'quest_result') {
-        const latestResult = roomState.history[roomState.history.length - 1];
-        const isFailed = latestResult.result === 'fail';
-        const needsTwoFailsStr = (roomState.players.length >= 7 && latestResult.round === 3) ? '(이번 라운드는 2장 필요)' : '';
+        const currentHist = roomState.history[roomState.history.length - 1];
+        const isSuccess = currentHist.result === 'success';
 
-        content += `
-          <div class="parchment-panel border-[6px] border-double border-[#8b6b4a] p-6 rounded-sm shadow-2xl text-center flex flex-col justify-center min-h-[500px] animate-fadeIn">
-            <h2 class="text-3xl font-extrabold mb-3 gold-text">여정 결과</h2>
-            <h3 class="text-4xl font-extrabold mb-8 drop-shadow-md ${isFailed ? 'text-[#ff5252]' : 'text-[#64b5f6]'}">${isFailed ? '임무 실패!' : '임무 성공!'}</h3>
+        content += getBoardHTML() + `
+          <div class="parchment-panel border-[6px] border-double border-[#8b6b4a] p-6 rounded-sm shadow-2xl text-center animate-fadeIn">
+            <h2 class="text-2xl font-extrabold mb-6 ${isSuccess ? 'text-[#82b1ff]' : 'text-[#ff5252]'}">
+              여정 ${isSuccess ? '성공!' : '실패...'}
+            </h2>
             
-            <div class="flex justify-center gap-3 mb-8 flex-wrap">
-              ${latestResult.cards.map((card, i) => `
-                <div class="w-20 h-28 rounded-sm flex items-center justify-center shadow-[0_10px_20px_rgba(0,0,0,0.6)] border-2 animate-fadeIn ${card === 'success' ? 'bg-[linear-gradient(to_bottom,#1565c0,#0d47a1)] border-[#82b1ff] text-[#e3f2fd]' : 'bg-[linear-gradient(to_bottom,#990000,#5c0000)] border-[#ff8a80] text-[#ffebee]'}" style="animation-delay: ${i * 150}ms; animation-fill-mode: both;">
-                  <i data-lucide="${card === 'success' ? 'shield' : 'sword'}" class="w-8 h-8"></i>
+            <div class="flex justify-center gap-2 mb-8">
+              ${currentHist.cards.map(card => `
+                <div class="w-16 h-24 border-2 rounded-sm flex items-center justify-center shadow-lg
+                  ${card === 'success' ? 'bg-[#1565c0] border-[#82b1ff] text-white' : 'bg-[#b71c1c] border-[#ff5252] text-white'}">
+                  <i data-lucide="${card === 'success' ? 'shield-check' : 'skull'}" class="w-8 h-8"></i>
                 </div>
               `).join('')}
             </div>
-            
-            <div class="stone-slot p-4 mb-8 mx-2 rounded-sm border-[#5d4037]">
-              <p class="text-[#f5deb3] font-bold text-lg">제출된 실패 카드: <span class="text-[#ff5252] text-2xl mx-1">${latestResult.fails}</span>장</p>
-              ${needsTwoFailsStr ? `<p class="text-xs font-normal text-[#bcaaa4] mt-1">${needsTwoFailsStr}</p>` : ''}
-            </div>
-            
+
+            <p class="text-[#bcaaa4] font-bold mb-6">총 ${currentHist.fails}개의 실패가 나왔습니다.</p>
+
             ${isHost ? `
-              <button onclick="proceedFromResult()" class="w-full py-4 gold-btn font-bold text-xl">다음 단계로 진행</button>
+              <button onclick="proceedFromResult()" class="w-full py-4 gold-btn text-xl font-bold rounded-sm">다음으로</button>
             ` : `
-              <div class="p-4 stone-slot text-[#bcaaa4] font-bold text-sm rounded-sm">방장이 결과를 확인 중입니다...</div>
+              <div class="stone-slot p-4 text-[#d7ccc8] font-bold rounded-sm">
+                방장이 다음 단계를 준비 중입니다...
+              </div>
             `}
           </div>
         `;
       }
       else if (roomState.gameState === 'evil_discussion') {
-        const amIHerod = myPlayer.roleId === 'herod';
-        content += `
-          <div class="bg-[linear-gradient(to_bottom_right,#3e1111,#1a0505)] border-[6px] border-double border-[#990000] p-6 rounded-sm shadow-2xl text-center flex flex-col justify-center min-h-[500px] animate-fadeIn">
-            <i data-lucide="alert-triangle" class="w-16 h-16 text-[#ff5252] mx-auto mb-4 drop-shadow-[0_0_15px_rgba(255,82,82,0.6)] animate-pulse"></i>
-            <h2 class="text-3xl font-extrabold text-[#ff8a80] mb-4">악 진영 모의 시간</h2>
-            <p class="text-[#d7ccc8] text-sm mb-8 leading-relaxed font-medium bg-[#140b08]/50 p-4 rounded-sm border border-[#5c0000]">
-              헤롯이 모세를 암살하기 전,<br/>악 진영끼리 소리 내어 (또는 눈치껏) 상의하세요.
+        const isHerod = myPlayer?.roleId === 'herod';
+
+        content += getBoardHTML() + `
+          <div class="parchment-panel border-[6px] border-double border-[#8b6b4a] p-6 rounded-sm shadow-2xl text-center animate-fadeIn min-h-[400px] flex flex-col justify-center">
+            <i data-lucide="eye" class="w-16 h-16 text-[#ff5252] mx-auto mb-4 drop-shadow-lg animate-pulse"></i>
+            <h2 class="text-2xl font-extrabold text-[#ff5252] mb-4">선 진영 3회 성공!</h2>
+            <p class="text-[#d7ccc8] font-bold mb-6 leading-relaxed">
+              빛의 자녀들이 승리하기 직전입니다.<br>
+              하지만 어둠의 세력에게 마지막 기회가 있습니다.<br>
+              <strong class="text-white text-lg">악 진영은 '모세'가 누구인지 논의하십시오.</strong>
             </p>
             
-            ${amIHerod || isHost ? `
-              <button onclick="endEvilDiscussion()" class="w-full py-4 blood-btn font-bold text-xl">모의 종료 (암살 대상 지목으로)</button>
+            ${isHerod || isHost ? `
+              <button onclick="endEvilDiscussion()" class="w-full py-4 blood-btn text-xl font-bold rounded-sm">암살 대상 선택하기 (헤롯)</button>
             ` : `
-              <div class="p-4 stone-slot text-[#bcaaa4] font-bold text-sm rounded-sm border-[#5c0000]">헤롯이 결정을 내리는 중입니다...</div>
+              <div class="stone-slot p-4 text-[#d7ccc8] font-bold rounded-sm">
+                헤롯이 암살 대상을 고민 중입니다...
+              </div>
             `}
           </div>
         `;
       }
       else if (roomState.gameState === 'assassination') {
-        const amIHerod = myPlayer.roleId === 'herod';
-        const herodPlayer = roomState.players.find(p => p.roleId === 'herod');
-        
-        content += `
-          <div class="bg-[linear-gradient(to_bottom_right,#3e1111,#1a0505)] border-[6px] border-double border-[#990000] p-5 rounded-sm shadow-2xl text-center min-h-[500px] flex flex-col justify-center animate-fadeIn">
-            <h2 class="text-3xl font-extrabold text-[#ff8a80] mb-2 drop-shadow-[0_2px_4px_rgba(0,0,0,1)]">마지막 위기!</h2>
-            <p class="text-[#d7ccc8] text-sm mb-6 font-medium">선 진영이 3번의 여정을 성공했습니다. 하지만 악 진영에게 마지막 기회가 있습니다.</p>
+        const isHerod = myPlayer?.roleId === 'herod';
+        const targets = roomState.players.filter(p => p.uid !== myUid);
+
+        content += getBoardHTML() + `
+          <div class="parchment-panel border-[6px] border-double border-[#8b6b4a] p-6 rounded-sm shadow-2xl animate-fadeIn">
+            <h2 class="text-2xl font-extrabold text-[#ff5252] mb-2 text-center">모세 암살</h2>
+            <p class="text-[#bcaaa4] font-bold mb-6 text-center text-sm">헤롯은 모세라고 생각되는 자를 지목하십시오.</p>
             
-            <div class="stone-slot p-4 rounded-sm mb-6 border-[#990000]">
-              <h3 class="text-xl font-bold text-[#f5deb3] mb-1">암살자 <span class="text-[#ff5252] font-extrabold drop-shadow-[0_0_8px_rgba(255,82,82,0.5)]">헤롯 (${herodPlayer?.name || '알 수 없음'})</span>의 턴</h3>
-              <p class="text-[#bcaaa4] text-xs">모세 역할을 한 자를 정확히 찾아내면 역전승합니다.</p>
+            <div class="grid grid-cols-2 gap-2 mb-6">
+              ${targets.map(p => {
+                const isSelected = uiState.localAssassinationTarget === p.uid;
+                return `
+                  <div onclick="selectTarget('${p.uid}')" 
+                       class="relative p-3 rounded-sm border-2 cursor-pointer transition-all flex flex-col items-center justify-center
+                       ${isSelected ? 'bg-[#7f0000] border-[#ff5252] shadow-[inset_0_0_15px_rgba(255,82,82,0.4)]' : 'bg-[#140b08] border-[#4e342e] hover:border-[#ff5252]'}
+                       ${!isHerod ? 'pointer-events-none' : ''}">
+                    ${isSelected ? '<i data-lucide="crosshair" class="absolute top-1 right-1 w-4 h-4 text-[#ff5252]"></i>' : ''}
+                    <span class="font-bold text-[#f5deb3]">${p.name}</span>
+                  </div>
+                `;
+              }).join('')}
             </div>
 
-            ${amIHerod ? `
-              <div class="grid grid-cols-2 gap-3 mb-6">
-                ${roomState.players.filter(p => p.team === 'good').map(p => `
-                  <button onclick="selectTarget('${p.uid}')" class="p-3 rounded-sm text-lg font-bold transition-all ${uiState.localAssassinationTarget === p.uid ? 'blood-btn scale-105 shadow-[0_0_15px_rgba(255,82,82,0.6)]' : 'medieval-btn opacity-90'}">
-                    ${p.name}
-                  </button>
-                `).join('')}
-              </div>
-              <button onclick="confirmAssassination()" ${!uiState.localAssassinationTarget ? 'disabled' : ''} class="w-full py-4 bg-[linear-gradient(to_bottom,#990000,#5c0000)] hover:bg-[linear-gradient(to_bottom,#b71c1c,#7f0000)] disabled:opacity-50 border-2 border-[#ff5252] text-white rounded-sm font-bold text-xl shadow-[0_10px_20px_rgba(0,0,0,0.8)] transition-all">
-                ${uiState.localAssassinationTarget ? `[ ${roomState.players.find(p => p.uid === uiState.localAssassinationTarget).name} ] 암살 확정` : '대상을 선택하세요'}
+            ${isHerod ? `
+              <button onclick="confirmAssassination()" ${!uiState.localAssassinationTarget ? 'disabled' : ''} class="w-full py-4 blood-btn text-xl font-bold rounded-sm">
+                암살 실행
               </button>
             ` : `
-              <div class="flex-1 flex items-center justify-center p-6 stone-slot rounded-sm border-[#5c0000]">
-                <p class="text-[#ff8a80] font-bold text-lg animate-pulse">헤롯이 대상을 고르고 있습니다...</p>
+              <div class="stone-slot p-4 text-[#d7ccc8] font-bold rounded-sm text-center">
+                헤롯이 단검을 쥐고 다가가고 있습니다...
               </div>
             `}
           </div>
@@ -968,41 +964,33 @@
       }
       else if (roomState.gameState === 'end') {
         const isGoodWin = roomState.winner === 'good';
+        
         content += `
-          <div class="p-6 rounded-sm shadow-[0_20px_50px_rgba(0,0,0,0.9)] border-[8px] border-double text-center animate-slideInDown ${isGoodWin ? 'bg-[linear-gradient(to_bottom_right,#0b2347,#051024)] border-[#1565c0]' : 'bg-[linear-gradient(to_bottom_right,#3e1111,#1a0505)] border-[#b71c1c]'}">
-            <i data-lucide="${isGoodWin ? 'shield' : 'sword'}" class="w-16 h-16 ${isGoodWin ? 'text-[#64b5f6] drop-shadow-[0_0_15px_rgba(100,181,246,0.6)]' : 'text-[#ff5252] drop-shadow-[0_0_15px_rgba(255,82,82,0.6)]'} mx-auto mb-4"></i>
-            <h1 class="text-4xl font-extrabold mb-4 drop-shadow-[0_4px_6px_rgba(0,0,0,1)] ${isGoodWin ? 'text-[#82b1ff]' : 'text-[#ff8a80]'}">${isGoodWin ? '선 진영 승리!' : '악 진영 승리!'}</h1>
-            <p class="text-base text-[#f5deb3] mb-8 font-bold leading-relaxed bg-black/50 p-3 rounded-sm border border-[#4e342e] shadow-inner">${roomState.winReason}</p>
+          <div class="parchment-panel border-[6px] border-double border-[#8b6b4a] p-6 rounded-sm shadow-2xl text-center animate-fadeIn relative overflow-hidden">
+            <div class="absolute inset-0 bg-${isGoodWin ? '[#0d47a1]' : '[#7f0000]'} opacity-20 pointer-events-none"></div>
             
-            <div class="stone-slot p-5 mb-8 text-left border-[#8b6b4a] rounded-sm">
-              <h3 class="text-xl font-bold gold-text mb-4 border-b-2 border-[#5d4037] pb-2 text-center uppercase">모든 역할 공개</h3>
-              <div class="space-y-4">
-                <div>
-                  <h4 class="text-[#64b5f6] font-bold mb-2 text-sm">빛의 자녀들 (선 진영)</h4>
-                  <div class="flex flex-wrap gap-2">
-                    ${roomState.players.filter(p => p.team === 'good').map(p => `
-                      <span class="bg-[#0d47a1]/40 px-3 py-1.5 rounded-sm text-[#e3f2fd] border border-[#1565c0] shadow-sm text-sm">
-                        <span class="font-bold">${p.name}</span> <span class="text-[#82b1ff] text-xs ml-1">(${p.characterName} / ${p.role})</span>
-                      </span>
-                    `).join('')}
-                  </div>
+            <i data-lucide="${isGoodWin ? 'crown' : 'skull'}" class="w-20 h-20 mx-auto mb-2 ${isGoodWin ? 'text-[#d4af37]' : 'text-[#ff5252]'} relative z-10"></i>
+            <h1 class="text-4xl font-extrabold mb-2 uppercase ${isGoodWin ? 'gold-text' : 'text-[#ff5252]'} relative z-10">${isGoodWin ? '선 진영 승리' : '악 진영 승리'}</h1>
+            <p class="text-[#d7ccc8] font-bold mb-8 relative z-10">${roomState.winReason}</p>
+            
+            <div class="space-y-2 mb-8 text-left relative z-10">
+              <h3 class="text-xl gold-text font-bold mb-4 text-center border-b border-[#5d4037] pb-2">모든 역할 공개</h3>
+              ${roomState.players.map(p => `
+                <div class="flex items-center justify-between bg-[#140b08]/80 border ${p.team === 'good' ? 'border-[#1565c0]' : 'border-[#b71c1c]'} px-4 py-2 rounded-sm">
+                  <span class="font-bold text-[#f5deb3]">${p.name}</span>
+                  <span class="text-sm font-bold ${p.team === 'good' ? 'text-[#82b1ff]' : 'text-[#ff5252]'}">${p.characterName} (${p.role})</span>
                 </div>
-                <div>
-                  <h4 class="text-[#ff8a80] font-bold mb-2 text-sm">어둠의 권세 (악 진영)</h4>
-                  <div class="flex flex-wrap gap-2">
-                    ${roomState.players.filter(p => p.team === 'evil').map(p => `
-                      <span class="bg-[#7f0000]/40 px-3 py-1.5 rounded-sm text-[#ffebee] border border-[#b71c1c] shadow-sm text-sm">
-                        <span class="font-bold">${p.name}</span> <span class="text-[#ff8a80] text-xs ml-1">(${p.characterName} / ${p.role})</span>
-                      </span>
-                    `).join('')}
-                  </div>
-                </div>
-              </div>
+              `).join('')}
             </div>
+
             ${isHost ? `
-              <button onclick="resetRoom()" class="w-full py-4 gold-btn font-bold text-xl uppercase tracking-widest">새 게임 다시 시작</button>
+              <button onclick="resetRoom()" class="w-full py-4 gold-btn text-xl font-bold rounded-sm relative z-10 flex items-center justify-center gap-2">
+                <i data-lucide="rotate-ccw" class="w-6 h-6"></i> 새로운 게임 시작
+              </button>
             ` : `
-              <div class="p-4 stone-slot text-[#bcaaa4] font-bold text-sm rounded-sm">방장이 게임을 다시 시작할 수 있습니다.</div>
+              <div class="stone-slot p-4 text-[#d7ccc8] font-bold rounded-sm text-center relative z-10">
+                방장이 새 게임을 준비할 수 있습니다.
+              </div>
             `}
           </div>
         `;
@@ -1011,25 +999,25 @@
       return content;
     };
 
-    // --- 메인 렌더 함수 ---
     const render = () => {
-      const app = document.getElementById('app');
-      
+      const appDiv = document.getElementById('app');
+      if (!appDiv) return;
+
       if (appState === 'initializing') {
-        // Init state handled by loading spinner in HTML
-        return;
-      }
-      
-      let html = '';
-      if (appState === 'lobby') {
-        html = renderLobby();
+        appDiv.innerHTML = `<div class="flex items-center justify-center h-64"><i data-lucide="loader-2" class="w-12 h-12 text-[#d4af37] animate-spin"></i></div>`;
+      } else if (appState === 'lobby') {
+        appDiv.innerHTML = renderLobby();
       } else if (appState === 'ingame') {
-        html = renderGame();
+        appDiv.innerHTML = renderGame();
       }
 
-      app.innerHTML = html;
-      lucide.createIcons();
+      setTimeout(() => {
+        if (typeof lucide !== 'undefined') lucide.createIcons();
+      }, 0);
     };
+
+    // Initial render call handled in auth state change
+    render();
 
   </script>
 </body>
