@@ -160,7 +160,7 @@
       rejectCount: 0,
       selectedTeam: [],
       votes: {},
-      questCards: [],
+      questCards: {},
       history: [],
       readyPlayers: [],
       winner: null,
@@ -240,7 +240,7 @@
       if (roomState.gameState === 'voting' && Object.keys(roomState.votes || {}).length >= roomState.players.length) {
         const approveCount = Object.values(roomState.votes).filter(v => v === 'approve').length;
         if (approveCount > roomState.players.length / 2) {
-          updateRoom({ gameState: 'quest', questCards: [], readyPlayers: [] });
+          updateRoom({ gameState: 'quest', questCards: {}, readyPlayers: [] });
         } else {
           const newRejectCount = roomState.rejectCount + 1;
           if (newRejectCount >= 5) {
@@ -259,11 +259,12 @@
       }
 
       // 여정 카드 제출 완료 처리
-      if (roomState.gameState === 'quest' && roomState.questCards.length >= roomState.selectedTeam.length) {
+      if (roomState.gameState === 'quest' && Object.keys(roomState.questCards || {}).length >= roomState.selectedTeam.length) {
         // 이미 처리되었는지 방지
         if (roomState.readyPlayers.length === 0) return; 
 
-        const failCount = roomState.questCards.filter(c => c === 'fail').length;
+        const cardsArray = Object.values(roomState.questCards || {});
+        const failCount = cardsArray.filter(c => c === 'fail').length;
         const needsTwoFails = roomState.players.length >= 7 && roomState.currentRound === 3;
         const resultStatus = (needsTwoFails ? failCount >= 2 : failCount >= 1) ? 'fail' : 'success';
 
@@ -271,7 +272,7 @@
           round: roomState.currentRound,
           team: [...roomState.selectedTeam],
           votes: { ...roomState.votes },
-          cards: shuffle([...roomState.questCards]),
+          cards: shuffle([...cardsArray]),
           result: resultStatus,
           fails: failCount
         }];
@@ -298,7 +299,7 @@
         gameState: 'setup',
         players: [{ uid: myUid, name: localPlayerName, isHost: true }],
         leaderIndex: 0, currentRound: 0, rejectCount: 0,
-        selectedTeam: [], votes: {}, questCards: [], history: [], readyPlayers: []
+        selectedTeam: [], votes: {}, questCards: {}, history: [], readyPlayers: []
       };
 
       try {
@@ -444,10 +445,11 @@
       const myPlayer = roomState.players.find(p => p.uid === myUid);
       if (myPlayer?.team === 'good' && cardType === 'fail') return;
 
-      await updateRoom({
-        questCards: arrayUnion(cardType),
-        readyPlayers: arrayUnion(myUid)
-      });
+      const updates = {};
+      updates[`questCards.${myUid}`] = cardType;
+      updates.readyPlayers = arrayUnion(myUid);
+
+      await updateRoom(updates);
     };
 
     window.proceedFromResult = async () => {
@@ -474,7 +476,7 @@
           leaderIndex: (roomState.leaderIndex + 1) % roomState.players.length,
           selectedTeam: [],
           readyPlayers: [],
-          questCards: [],
+          questCards: {},
           votes: {}
         });
       }
@@ -517,7 +519,7 @@
         leaderIndex: 0,
         selectedTeam: [],
         votes: {},
-        questCards: [],
+        questCards: {},
         readyPlayers: [],
         players: roomState.players.map(p => ({ uid: p.uid, name: p.name, isHost: p.isHost })) // 역할 초기화
       });
